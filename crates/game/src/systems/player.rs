@@ -1,14 +1,13 @@
 use std::collections::HashSet;
 
-use engine_assets::BlockRegistry;
 use engine_core::{SystemContext, Time};
-use engine_input::InputState;
-use engine_world::{BlockPos, SparseVoxelOctree};
+use engine_world::SparseVoxelOctree;
 use glam::Vec3;
 use hecs::Entity;
 
 use crate::components::{Collider, Mounted, NetPlayerId, Player, Transform, Velocity};
-use crate::simulation::{LocalPlayer, RemoteInputs, SimulationMode};
+use crate::input::resolve_input;
+use crate::systems::physics::collision::collides_aabb;
 
 const WALK_SPEED: f32 = 6.0;
 const JUMP_SPEED: f32 = 8.5;
@@ -16,13 +15,7 @@ const GRAVITY: f32 = 24.0;
 const MOUSE_SENSITIVITY: f32 = 0.002;
 
 pub fn player_look_system(ctx: &mut SystemContext<'_>) {
-    let mounted: HashSet<Entity> = ctx
-        .world
-        .query::<(&Player, &Mounted)>()
-        .iter()
-        .map(|(entity, _)| entity)
-        .collect();
-
+    let mounted: HashSet<Entity> = mounted_players(ctx);
     let players: Vec<(Entity, Option<u32>)> = ctx
         .world
         .query::<(&Player, Option<&NetPlayerId>)>()
@@ -34,7 +27,7 @@ pub fn player_look_system(ctx: &mut SystemContext<'_>) {
         if mounted.contains(&entity) {
             continue;
         }
-        let Some(input) = resolve_player_input(ctx, net_id) else {
+        let Some(input) = resolve_input(ctx, net_id) else {
             continue;
         };
         if let Ok(mut transform) = ctx.world.get::<&mut Transform>(entity) {
@@ -46,13 +39,7 @@ pub fn player_look_system(ctx: &mut SystemContext<'_>) {
 }
 
 pub fn player_movement_system(ctx: &mut SystemContext<'_>) {
-    let mounted: HashSet<Entity> = ctx
-        .world
-        .query::<(&Player, &Mounted)>()
-        .iter()
-        .map(|(entity, _)| entity)
-        .collect();
-
+    let mounted = mounted_players(ctx);
     let players: Vec<(Entity, Option<u32>, bool)> = ctx
         .world
         .query::<(&Player, &Transform, Option<&NetPlayerId>)>()
@@ -70,7 +57,7 @@ pub fn player_movement_system(ctx: &mut SystemContext<'_>) {
         if mounted.contains(&entity) {
             continue;
         }
-        let Some(input) = resolve_player_input(ctx, net_id) else {
+        let Some(input) = resolve_input(ctx, net_id) else {
             continue;
         };
         let Ok(mut velocity) = ctx.world.get::<&mut Velocity>(entity) else {
@@ -95,13 +82,7 @@ pub fn player_movement_system(ctx: &mut SystemContext<'_>) {
 
 pub fn player_physics_system(ctx: &mut SystemContext<'_>) {
     let delta = ctx.resources.get::<Time>().map(|time| time.delta).unwrap_or(0.0);
-
-    let mounted: HashSet<Entity> = ctx
-        .world
-        .query::<(&Player, &Mounted)>()
-        .iter()
-        .map(|(entity, _)| entity)
-        .collect();
+    let mounted = mounted_players(ctx);
 
     let updates: Vec<(Entity, Vec3, Vec3, Vec3)> = ctx
         .world
@@ -138,27 +119,12 @@ pub fn player_physics_system(ctx: &mut SystemContext<'_>) {
     }
 }
 
-fn resolve_player_input(ctx: &SystemContext<'_>, net_id: Option<u32>) -> Option<InputState> {
-    match ctx
-        .resources
-        .get::<SimulationMode>()
-        .copied()
-        .unwrap_or(SimulationMode::Local)
-    {
-        SimulationMode::Local => ctx.resources.get::<InputState>().cloned(),
-        SimulationMode::AuthoritativeServer => {
-            let id = net_id?;
-            ctx.resources.get::<RemoteInputs>()?.get(id)
-        }
-        SimulationMode::NetworkClient => {
-            let local = ctx.resources.get::<LocalPlayer>()?;
-            if net_id == local.id {
-                ctx.resources.get::<InputState>().cloned()
-            } else {
-                None
-            }
-        }
-    }
+fn mounted_players(ctx: &SystemContext<'_>) -> HashSet<Entity> {
+    ctx.world
+        .query::<(&Player, &Mounted)>()
+        .iter()
+        .map(|(entity, _)| entity)
+        .collect()
 }
 
 fn is_grounded(ctx: &SystemContext<'_>, position: Vec3) -> bool {
@@ -170,25 +136,11 @@ fn is_grounded(ctx: &SystemContext<'_>, position: Vec3) -> bool {
 }
 
 pub(crate) fn collides_at(ctx: &SystemContext<'_>, position: Vec3, half_extents: Vec3) -> bool {
-    let Some(registry) = ctx.resources.get::<BlockRegistry>() else {
+    let Some(registry) = ctx.resources.get::<engine_assets::BlockRegistry>() else {
         return false;
     };
     let Some(world) = ctx.resources.get::<SparseVoxelOctree>() else {
         return false;
     };
-
-    let min = (position - half_extents).floor().as_ivec3();
-    let max = (position + half_extents).ceil().as_ivec3();
-
-    for x in min.x..=max.x {
-        for y in min.y..=max.y {
-            for z in min.z..=max.z {
-                let block = world.get_block(BlockPos::new(x, y, z));
-                if registry.is_solid(block) {
-                    return true;
-                }
-            }
-        }
-    }
-    false
+    collides_aabb(world, registry, position, half_extents)
 }

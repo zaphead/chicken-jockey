@@ -1,23 +1,16 @@
 use engine_assets::BlockRegistry;
 use engine_core::SystemContext;
-use engine_input::InputState;
 use engine_world::{BlockPos, SparseVoxelOctree, WorldMutationQueue};
 use glam::Vec3;
 use hecs::Entity;
 
 use crate::components::{Mounted, NetPlayerId, Player, Transform};
-use crate::simulation::{LocalPlayer, RemoteInputs, SimulationMode};
+use crate::events::BlockChangeIntent;
+use crate::input::resolve_input;
 
 const REACH: f32 = 6.0;
 
 pub fn block_interaction_system(ctx: &mut SystemContext<'_>) {
-    if matches!(
-        ctx.resources.get::<SimulationMode>(),
-        Some(SimulationMode::NetworkClient)
-    ) {
-        return;
-    }
-
     let Some(registry) = ctx.resources.get::<BlockRegistry>() else {
         return;
     };
@@ -42,7 +35,7 @@ pub fn block_interaction_system(ctx: &mut SystemContext<'_>) {
             continue;
         }
 
-        let Some(input) = resolve_player_input(ctx, net_id) else {
+        let Some(input) = resolve_input(ctx, net_id) else {
             continue;
         };
         if !input.break_block && !input.place_block {
@@ -69,31 +62,16 @@ pub fn block_interaction_system(ctx: &mut SystemContext<'_>) {
 
         if input.break_block {
             queue.set_block(hit.block_pos, air);
+            ctx.events.send(BlockChangeIntent {
+                position: hit.block_pos,
+                new_block: air,
+            });
         } else if can_place {
             queue.set_block(place_pos, stone);
-        }
-    }
-}
-
-fn resolve_player_input(ctx: &SystemContext<'_>, net_id: Option<u32>) -> Option<InputState> {
-    match ctx
-        .resources
-        .get::<SimulationMode>()
-        .copied()
-        .unwrap_or(SimulationMode::Local)
-    {
-        SimulationMode::Local => ctx.resources.get::<InputState>().cloned(),
-        SimulationMode::AuthoritativeServer => {
-            let id = net_id?;
-            ctx.resources.get::<RemoteInputs>()?.get(id)
-        }
-        SimulationMode::NetworkClient => {
-            let local = ctx.resources.get::<LocalPlayer>()?;
-            if net_id == local.id {
-                ctx.resources.get::<InputState>().cloned()
-            } else {
-                None
-            }
+            ctx.events.send(BlockChangeIntent {
+                position: place_pos,
+                new_block: stone,
+            });
         }
     }
 }

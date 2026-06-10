@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use engine_assets::BlockRegistry;
 use engine_core::{SystemContext, Time};
-use engine_world::{BlockPos, SparseVoxelOctree};
+use engine_world::SparseVoxelOctree;
 use glam::Vec3;
 use hecs::Entity;
 use rand::Rng;
@@ -114,7 +114,12 @@ pub fn chicken_wander_system(ctx: &mut SystemContext<'_>) {
                 continue;
             }
             position[axis] += delta_axis;
-            if collides(world, registry, position) {
+            if crate::systems::physics::collision::collides_aabb(
+                world,
+                registry,
+                position,
+                Vec3::new(0.35, 0.45, 0.35),
+            ) {
                 position[axis] -= delta_axis;
                 velocity[axis] = 0.0;
                 chicken.wander_direction =
@@ -127,18 +132,3 @@ pub fn chicken_wander_system(ctx: &mut SystemContext<'_>) {
     }
 }
 
-fn collides(world: &SparseVoxelOctree, registry: &BlockRegistry, position: Vec3) -> bool {
-    let half = Vec3::new(0.35, 0.45, 0.35);
-    let min = (position - half).floor().as_ivec3();
-    let max = (position + half).ceil().as_ivec3();
-    for x in min.x..=max.x {
-        for y in min.y..=max.y {
-            for z in min.z..=max.z {
-                if registry.is_solid(world.get_block(BlockPos::new(x, y, z))) {
-                    return true;
-                }
-            }
-        }
-    }
-    false
-}

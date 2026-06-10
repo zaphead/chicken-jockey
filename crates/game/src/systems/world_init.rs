@@ -2,10 +2,35 @@ use engine_core::SystemContext;
 use glam::Vec3;
 
 use crate::components::{Collider, NetPlayerId, Player, Transform, Velocity, WorldInitialized};
-use crate::simulation::{LocalPlayer, SimulationMode};
+use crate::input::LocalPlayerId;
+use crate::mode::NetworkClient;
 use crate::systems::terrain::spawn_height;
 
-pub fn spawn_player_system(ctx: &mut SystemContext<'_>) {
+pub fn spawn_local_player_system(ctx: &mut SystemContext<'_>) {
+    if ctx.resources.get::<NetworkClient>().is_some() {
+        return;
+    }
+    spawn_when_ready(ctx, || 0);
+}
+
+pub fn spawn_network_player_system(ctx: &mut SystemContext<'_>) {
+    if ctx.resources.get::<NetworkClient>().is_none() {
+        return;
+    }
+    let Some(local) = ctx.resources.get::<LocalPlayerId>() else {
+        return;
+    };
+    if local.spawned || local.id.is_none() {
+        return;
+    }
+    let id = local.id.expect("checked above");
+    spawn_when_ready(ctx, || id);
+    if let Some(local) = ctx.resources.get_mut::<LocalPlayerId>() {
+        local.spawned = true;
+    }
+}
+
+fn spawn_when_ready(ctx: &mut SystemContext<'_>, player_id: impl FnOnce() -> u32) {
     let initialized = ctx
         .resources
         .get::<WorldInitialized>()
@@ -14,38 +39,10 @@ pub fn spawn_player_system(ctx: &mut SystemContext<'_>) {
     if !initialized {
         return;
     }
-
-    let mode = ctx
-        .resources
-        .get::<SimulationMode>()
-        .copied()
-        .unwrap_or(SimulationMode::Local);
-
-    if matches!(mode, SimulationMode::AuthoritativeServer) {
-        return;
-    }
-
-    if matches!(mode, SimulationMode::NetworkClient) {
-        let Some(local) = ctx.resources.get::<LocalPlayer>() else {
-            return;
-        };
-        if local.spawned || local.id.is_none() {
-            return;
-        }
-        if let Some(id) = local.id {
-            spawn_net_player(ctx, id);
-            if let Some(local) = ctx.resources.get_mut::<LocalPlayer>() {
-                local.spawned = true;
-            }
-        }
-        return;
-    }
-
     if ctx.world.query::<&Player>().iter().next().is_some() {
         return;
     }
-
-    spawn_net_player(ctx, 0);
+    spawn_net_player(ctx, player_id());
 }
 
 pub fn spawn_net_player(ctx: &mut SystemContext<'_>, player_id: u32) {

@@ -1,24 +1,25 @@
-mod net;
+mod systems;
 
 use std::net::SocketAddr;
-use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use engine_assets::load_block_registry;
+use engine_assets::{blocks_asset_path, AssetServer};
 use engine_core::{App, Time};
 use engine_input::{apply_winit_event, InputState};
 use engine_net::NetClient;
 use engine_render::{
-    cube_mesh, extract_render_scene, Camera, ChunkMeshCache, Renderer, CHUNK_MESH_LOD_DISTANCE,
+    ComputeMesher, RenderExtractState, RenderSurfaceInfo, RenderWorld, Renderer,
 };
-use engine_world::{BlockChanged, SparseVoxelOctree, WorldMutationQueue};
+use engine_world::{SparseVoxelOctree, WorldMutationQueue};
 use game::{
-    register_client_systems, LocalPlayer, Player, Renderable, SimulationMode, TerrainGeneration,
-    Transform, WorldInitialized, WORLD_RADIUS,
+    register_local_client_systems, register_network_client_systems, LocalPlayerId, NetworkClient,
+    PlayerInputs, TerrainGeneration, WorldInitialized,
 };
-use glam::{IVec3, Vec3};
-use net::client_net_pre_update;
+use systems::input::PendingWinitInput;
+use systems::net::ClientNet;
+use systems::present::ClientRenderer;
+use systems::register_client_schedule;
 use winit::application::ApplicationHandler;
 use winit::dpi::{PhysicalPosition, PhysicalSize};
 use winit::event::{DeviceEvent, ElementState, MouseButton, WindowEvent};
@@ -30,13 +31,9 @@ use winit::platform::macos::{ActivationPolicy, EventLoopBuilderExtMacOS};
 
 struct ClientApp {
     window: Option<Arc<Window>>,
-    renderer: Option<Renderer>,
-    net: Option<NetClient>,
     ecs: App,
     input: InputState,
-    mesh_cache: ChunkMeshCache,
     last_frame: Instant,
-    world_mesh_queue: Vec<IVec3>,
     window_centered: bool,
 }
 
@@ -44,43 +41,40 @@ impl ClientApp {
     fn new() -> Self {
         let mut ecs = App::new();
         ecs.insert_resource(Time::new(1.0 / 60.0));
-        ecs.insert_resource(InputState::default());
+        ecs.insert_resource(PlayerInputs::default());
+        ecs.insert_resource(PendingWinitInput(InputState::default()));
         ecs.insert_resource(SparseVoxelOctree::default());
         ecs.insert_resource(WorldMutationQueue::default());
         ecs.insert_resource(WorldInitialized::default());
         ecs.insert_resource(TerrainGeneration::default());
-        ecs.insert_resource(LocalPlayer::default());
+        ecs.insert_resource(LocalPlayerId::default());
+        ecs.insert_resource(RenderExtractState::default());
+        ecs.insert_resource(RenderWorld::default());
+        ecs.insert_resource(RenderSurfaceInfo::default());
 
-        let net = std::env::var("CJ_SERVER")
+        let mut assets = AssetServer::default();
+        assets.load_blocks(blocks_asset_path(env!("CARGO_MANIFEST_DIR")));
+        ecs.insert_resource(assets);
+
+        if let Some(addr) = std::env::var("CJ_SERVER")
             .ok()
             .and_then(|value| value.parse::<SocketAddr>().ok())
-            .map(|addr| {
-                log::info!("connecting to server at {addr}");
-                ecs.insert_resource(SimulationMode::NetworkClient);
-                NetClient::connect(addr)
-            });
-
-        if net.is_none() {
-            ecs.insert_resource(SimulationMode::Local);
+        {
+            log::info!("connecting to server at {addr}");
+            ecs.insert_resource(NetworkClient);
+            ecs.insert_resource(ClientNet(NetClient::connect(addr)));
+            register_network_client_systems(&mut ecs);
+        } else {
+            register_local_client_systems(&mut ecs);
         }
 
-        let assets = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("..")
-            .join("assets")
-            .join("blocks");
-        ecs.insert_resource(load_block_registry(&assets));
-
-        register_client_systems(&mut ecs);
+        register_client_schedule(&mut ecs);
 
         Self {
             window: None,
-            renderer: None,
-            net,
             ecs,
             input: InputState::default(),
-            mesh_cache: ChunkMeshCache::default(),
             last_frame: Instant::now(),
-            world_mesh_queue: Vec::new(),
             window_centered: false,
         }
     }
@@ -93,33 +87,12 @@ impl ClientApp {
         if let Some(time) = self.ecs.resource_mut::<Time>() {
             time.advance_variable(delta);
         }
-        if let Some(input) = self.ecs.resource_mut::<InputState>() {
-            *input = self.input.clone();
-        }
-
-        if let Some(net) = &self.net {
-            client_net_pre_update(&mut self.ecs, net, &self.input);
+        if let Some(pending) = self.ecs.resource_mut::<PendingWinitInput>() {
+            pending.0 = self.input.clone();
         }
 
         self.ecs.tick_with_render();
-
-        for change in self.ecs.drain_events::<BlockChanged>() {
-            self.mesh_cache.mark_dirty_neighbors(change.position);
-        }
         self.ecs.end_frame();
-
-        if self.world_mesh_queue.is_empty()
-            && self
-                .ecs
-                .resource::<WorldInitialized>()
-                .map(|flag| flag.0)
-                .unwrap_or(false)
-        {
-            self.queue_world_mesh_chunks();
-        }
-        self.enqueue_world_mesh_batch();
-
-        self.extract_and_render();
         self.input.clear_frame_state();
 
         event_loop.set_control_flow(winit::event_loop::ControlFlow::WaitUntil(
@@ -127,69 +100,26 @@ impl ClientApp {
         ));
     }
 
-    fn queue_world_mesh_chunks(&mut self) {
-        let chunk_radius = WORLD_RADIUS / engine_world::CHUNK_SIZE + 1;
-        for cx in -chunk_radius..chunk_radius {
-            for cz in -chunk_radius..chunk_radius {
-                for cy in 0..2 {
-                    self.world_mesh_queue.push(IVec3::new(cx, cy, cz));
-                }
-            }
-        }
-    }
-
-    fn enqueue_world_mesh_batch(&mut self) {
-        const BATCH: usize = 16;
-        for chunk in self.world_mesh_queue.drain(..self.world_mesh_queue.len().min(BATCH)) {
-            self.mesh_cache.mark_dirty(chunk);
-        }
-    }
-
     fn try_create_renderer(&mut self, size: PhysicalSize<u32>) {
-        if self.renderer.is_some() || size.width == 0 || size.height == 0 {
+        if self.ecs.resource::<ClientRenderer>().is_some() || size.width == 0 || size.height == 0 {
             return;
         }
         let Some(window) = self.window.clone() else {
             return;
         };
         log::info!("creating renderer at {}x{}", size.width, size.height);
-        self.renderer = Some(Renderer::new(window));
-        log::info!("renderer ready");
-    }
-
-    fn extract_and_render(&mut self) {
-        let Some(renderer) = self.renderer.as_mut() else {
-            return;
-        };
-
-        let world = self.ecs.resource::<SparseVoxelOctree>().expect("world");
-        let registry = self
-            .ecs
-            .resource::<engine_assets::BlockRegistry>()
-            .expect("registry");
-
-        let camera = player_camera(&self.ecs, renderer.aspect());
-        let _rebuilt = self.mesh_cache.rebuild_dirty_near(
-            world,
-            registry,
-            camera.position,
-            CHUNK_MESH_LOD_DISTANCE,
-        );
-        let mut meshes = self.mesh_cache.all_meshes();
-
-        for (_, (transform, renderable)) in self.ecs.world.query::<(&Transform, &Renderable)>().iter()
-        {
-            meshes.push(translate_mesh(
-                cube_mesh(IVec3::ZERO, renderable.size, renderable.color),
-                transform.position - Vec3::splat(renderable.size * 0.5),
+        let renderer = Renderer::new(window);
+        if let Some(state) = self.ecs.resource_mut::<RenderExtractState>() {
+            state.compute_mesher = Some(ComputeMesher::new(
+                renderer.device().clone(),
+                renderer.queue().clone(),
             ));
         }
-
-        renderer.upload_meshes(&meshes);
-        let scene = extract_render_scene(camera, meshes, Vec::new());
-        if let Err(error) = renderer.render(&scene) {
-            log::warn!("render error: {error:?}");
+        self.ecs.insert_resource(ClientRenderer(renderer));
+        if let Some(info) = self.ecs.resource_mut::<RenderSurfaceInfo>() {
+            info.aspect = size.width as f32 / size.height.max(1) as f32;
         }
+        log::info!("renderer ready");
     }
 }
 
@@ -207,13 +137,9 @@ impl ApplicationHandler for ClientApp {
 
         let _ = window.request_inner_size(PhysicalSize::new(1280, 720));
         center_window_on_monitor(&window);
-        let size = window.inner_size();
-        log::info!("window created, inner_size={size:?}, outer_position={:?}", window.outer_position());
-
-        self.window = Some(window.clone());
-
         window.focus_window();
         window.request_redraw();
+        self.window = Some(window);
     }
 
     fn window_event(
@@ -232,15 +158,18 @@ impl ApplicationHandler for ClientApp {
                     }
                 }
                 self.try_create_renderer(*size);
-                if let Some(renderer) = self.renderer.as_mut() {
-                    renderer.resize(*size);
+                if let Some(renderer) = self.ecs.resource_mut::<ClientRenderer>() {
+                    renderer.0.resize(*size);
+                }
+                if let Some(info) = self.ecs.resource_mut::<RenderSurfaceInfo>() {
+                    info.aspect = size.width as f32 / size.height.max(1) as f32;
                 }
                 if let Some(window) = &self.window {
                     window.request_redraw();
                 }
             }
             WindowEvent::RedrawRequested => {
-                if self.renderer.is_some() {
+                if self.ecs.resource::<ClientRenderer>().is_some() {
                     self.tick(event_loop);
                 }
             }
@@ -281,11 +210,8 @@ impl ApplicationHandler for ClientApp {
     }
 
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
-        let size = self.window.as_ref().map(|window| window.inner_size());
-        if self.renderer.is_none() {
-            if let Some(size) = size {
-                self.try_create_renderer(size);
-            }
+        if let Some(size) = self.window.as_ref().map(|w| w.inner_size()) {
+            self.try_create_renderer(size);
         }
         if let Some(window) = &self.window {
             window.request_redraw();
@@ -318,30 +244,6 @@ fn window_attributes() -> WindowAttributes {
         .with_inner_size(PhysicalSize::new(1280, 720))
         .with_min_inner_size(PhysicalSize::new(640, 480))
         .with_visible(true)
-}
-
-fn player_camera(ecs: &App, aspect: f32) -> Camera {
-    let mut camera = Camera::default();
-    camera.aspect = aspect;
-
-    if let Some((_, (_, transform))) = ecs.world.query::<(&Player, &Transform)>().iter().next() {
-        camera.position = transform.position + Vec3::new(0.0, 1.6, 0.0);
-        camera.yaw = transform.yaw;
-        camera.pitch = transform.pitch;
-    }
-
-    camera
-}
-
-fn translate_mesh(
-    mut mesh: engine_render::SolidMesh,
-    offset: Vec3,
-) -> engine_render::SolidMesh {
-    for vertex in &mut mesh.vertices {
-        let position = Vec3::from_array(vertex.position) + offset;
-        vertex.position = position.to_array();
-    }
-    mesh
 }
 
 fn main() {

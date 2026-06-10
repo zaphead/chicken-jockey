@@ -30,6 +30,14 @@ pub fn decode_client_packet(bytes: &[u8]) -> Result<ClientPacket, CodecError> {
     decode_packet(bytes)
 }
 
+pub fn client_packet_uses_datagram(packet: &ClientPacket) -> bool {
+    matches!(packet, ClientPacket::Input(_))
+}
+
+pub fn server_packet_uses_datagram(packet: &ServerPacket) -> bool {
+    matches!(packet, ServerPacket::EntitySnapshots(_))
+}
+
 fn decode_packet<T: serde::de::DeserializeOwned>(bytes: &[u8]) -> Result<T, CodecError> {
     if bytes.len() < 4 {
         return Err(CodecError::Empty);

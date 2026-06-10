@@ -11,6 +11,7 @@ pub struct CameraUniform {
 
 pub struct RenderPipeline {
     pub pipeline: wgpu::RenderPipeline,
+    pub depth_pipeline: wgpu::RenderPipeline,
     pub _camera_bind_group_layout: wgpu::BindGroupLayout,
     pub camera_buffer: wgpu::Buffer,
     pub camera_bind_group: wgpu::BindGroup,
@@ -44,35 +45,65 @@ impl RenderPipeline {
             push_constant_ranges: &[],
         });
 
+        let vertex_state = wgpu::VertexState {
+            module: &shader,
+            entry_point: Some("vs_main"),
+            buffers: &[wgpu::VertexBufferLayout {
+                array_stride: std::mem::size_of::<MeshVertex>() as wgpu::BufferAddress,
+                step_mode: wgpu::VertexStepMode::Vertex,
+                attributes: &[
+                    wgpu::VertexAttribute {
+                        offset: 0,
+                        shader_location: 0,
+                        format: wgpu::VertexFormat::Float32x3,
+                    },
+                    wgpu::VertexAttribute {
+                        offset: 12,
+                        shader_location: 1,
+                        format: wgpu::VertexFormat::Float32x3,
+                    },
+                    wgpu::VertexAttribute {
+                        offset: 24,
+                        shader_location: 2,
+                        format: wgpu::VertexFormat::Float32x3,
+                    },
+                ],
+            }],
+            compilation_options: Default::default(),
+        };
+
+        let primitive = wgpu::PrimitiveState {
+            topology: wgpu::PrimitiveTopology::TriangleList,
+            strip_index_format: None,
+            front_face: wgpu::FrontFace::Ccw,
+            cull_mode: Some(wgpu::Face::Back),
+            ..Default::default()
+        };
+
+        let depth_stencil = wgpu::DepthStencilState {
+            format: wgpu::TextureFormat::Depth32Float,
+            depth_write_enabled: true,
+            depth_compare: wgpu::CompareFunction::Less,
+            stencil: wgpu::StencilState::default(),
+            bias: wgpu::DepthBiasState::default(),
+        };
+
+        let depth_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("depth_prepass_pipeline"),
+            layout: Some(&pipeline_layout),
+            vertex: vertex_state.clone(),
+            fragment: None,
+            primitive,
+            depth_stencil: Some(depth_stencil.clone()),
+            multisample: wgpu::MultisampleState::default(),
+            multiview: None,
+            cache: None,
+        });
+
         let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("render_pipeline"),
             layout: Some(&pipeline_layout),
-            vertex: wgpu::VertexState {
-                module: &shader,
-                entry_point: Some("vs_main"),
-                buffers: &[wgpu::VertexBufferLayout {
-                    array_stride: std::mem::size_of::<MeshVertex>() as wgpu::BufferAddress,
-                    step_mode: wgpu::VertexStepMode::Vertex,
-                    attributes: &[
-                        wgpu::VertexAttribute {
-                            offset: 0,
-                            shader_location: 0,
-                            format: wgpu::VertexFormat::Float32x3,
-                        },
-                        wgpu::VertexAttribute {
-                            offset: 12,
-                            shader_location: 1,
-                            format: wgpu::VertexFormat::Float32x3,
-                        },
-                        wgpu::VertexAttribute {
-                            offset: 24,
-                            shader_location: 2,
-                            format: wgpu::VertexFormat::Float32x3,
-                        },
-                    ],
-                }],
-                compilation_options: Default::default(),
-            },
+            vertex: vertex_state,
             fragment: Some(wgpu::FragmentState {
                 module: &shader,
                 entry_point: Some("fs_main"),
@@ -83,20 +114,8 @@ impl RenderPipeline {
                 })],
                 compilation_options: Default::default(),
             }),
-            primitive: wgpu::PrimitiveState {
-                topology: wgpu::PrimitiveTopology::TriangleList,
-                strip_index_format: None,
-                front_face: wgpu::FrontFace::Ccw,
-                cull_mode: Some(wgpu::Face::Back),
-                ..Default::default()
-            },
-            depth_stencil: Some(wgpu::DepthStencilState {
-                format: wgpu::TextureFormat::Depth32Float,
-                depth_write_enabled: true,
-                depth_compare: wgpu::CompareFunction::Less,
-                stencil: wgpu::StencilState::default(),
-                bias: wgpu::DepthBiasState::default(),
-            }),
+            primitive,
+            depth_stencil: Some(depth_stencil),
             multisample: wgpu::MultisampleState::default(),
             multiview: None,
             cache: None,
@@ -120,6 +139,7 @@ impl RenderPipeline {
 
         Self {
             pipeline,
+            depth_pipeline,
             _camera_bind_group_layout: camera_bind_group_layout,
             camera_buffer,
             camera_bind_group,

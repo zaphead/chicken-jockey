@@ -1,23 +1,24 @@
 use std::sync::Arc;
 
+use crossbeam_channel::bounded;
 use wgpu::SurfaceError;
 use winit::dpi::PhysicalSize;
 use winit::window::Window;
 
 use crate::mesh::SolidMesh;
-use crate::pipeline::{GpuMesh, RenderPipeline};
+use crate::pipeline::RenderPipeline;
+use crate::render_submit::{RenderSubmitThread, RenderSubmitWork};
 use crate::world_mesh::RenderScene;
 
 pub struct Renderer {
     window: Arc<Window>,
     surface: wgpu::Surface<'static>,
-    device: wgpu::Device,
-    queue: wgpu::Queue,
+    device: Arc<wgpu::Device>,
+    queue: Arc<wgpu::Queue>,
     config: wgpu::SurfaceConfiguration,
     depth_texture: wgpu::Texture,
     depth_view: wgpu::TextureView,
-    pipeline: RenderPipeline,
-    gpu_meshes: Vec<GpuMesh>,
+    submit_thread: RenderSubmitThread,
 }
 
 impl Renderer {
@@ -50,6 +51,9 @@ impl Renderer {
         ))
         .expect("request device");
 
+        let device = Arc::new(device);
+        let queue = Arc::new(queue);
+
         let surface_caps = surface.get_capabilities(&adapter);
         let surface_format = surface_caps
             .formats
@@ -74,6 +78,9 @@ impl Renderer {
             create_depth_texture(&device, config.width, config.height);
 
         let pipeline = RenderPipeline::new(&device, surface_format);
+        let depth_pipeline = pipeline.depth_pipeline.clone();
+        let submit_thread =
+            RenderSubmitThread::spawn(device.clone(), queue.clone(), pipeline, depth_pipeline);
 
         Self {
             window,
@@ -83,9 +90,16 @@ impl Renderer {
             config,
             depth_texture,
             depth_view,
-            pipeline,
-            gpu_meshes: Vec::new(),
+            submit_thread,
         }
+    }
+
+    pub fn device(&self) -> &Arc<wgpu::Device> {
+        &self.device
+    }
+
+    pub fn queue(&self) -> &Arc<wgpu::Queue> {
+        &self.queue
     }
 
     pub fn resize(&mut self, size: PhysicalSize<u32>) {
@@ -105,67 +119,34 @@ impl Renderer {
         self.config.width as f32 / self.config.height as f32
     }
 
-    pub fn upload_meshes(&mut self, meshes: &[SolidMesh]) {
-        self.gpu_meshes = meshes
-            .iter()
-            .map(|mesh| GpuMesh::from_mesh(&self.device, mesh))
-            .collect();
-    }
+    pub fn upload_meshes(&mut self, _meshes: &[SolidMesh]) {}
 
     pub fn render(&mut self, scene: &RenderScene) -> Result<(), SurfaceError> {
         let output = self.surface.get_current_texture()?;
-        let view = output
+        let color_view = output
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
 
-        self.pipeline
-            .update_camera(&self.queue, scene.camera.view_projection());
-
-        let mut encoder = self
-            .device
-            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                label: Some("render_encoder"),
-            });
-
-        {
-            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("render_pass"),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &view,
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color {
-                            r: 0.53,
-                            g: 0.81,
-                            b: 0.98,
-                            a: 1.0,
-                        }),
-                        store: wgpu::StoreOp::Store,
-                    },
-                })],
-                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                    view: &self.depth_view,
-                    depth_ops: Some(wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(1.0),
-                        store: wgpu::StoreOp::Store,
-                    }),
-                    stencil_ops: None,
-                }),
-                occlusion_query_set: None,
-                timestamp_writes: None,
-            });
-
-            pass.set_pipeline(&self.pipeline.pipeline);
-            pass.set_bind_group(0, &self.pipeline.camera_bind_group, &[]);
-
-            for mesh in &self.gpu_meshes {
-                pass.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
-                pass.set_index_buffer(mesh.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
-                pass.draw_indexed(0..mesh.index_count, 0, 0..1);
+        let mut meshes = scene.chunk_meshes.clone();
+        for (offset, mesh) in &scene.entity_meshes {
+            let mut translated = mesh.clone();
+            for vertex in &mut translated.vertices {
+                let position = glam::Vec3::from_array(vertex.position) + *offset;
+                vertex.position = position.to_array();
             }
+            meshes.push(translated);
         }
 
-        self.queue.submit(Some(encoder.finish()));
+        let (done_tx, done_rx) = bounded(1);
+        self.submit_thread.submit(RenderSubmitWork {
+            color_view,
+            depth_view: self.depth_view.clone(),
+            scene: scene.clone(),
+            meshes,
+            done: done_tx,
+        });
+        let _ = done_rx.recv();
+
         self.window.pre_present_notify();
         output.present();
         Ok(())

@@ -11,5 +11,5 @@ pub use app::{App, SystemContext};
 pub use commands::Commands;
 pub use events::Events;
 pub use resources::Resources;
-pub use schedule::{Stage, SystemId};
+pub use schedule::{RunCondition, Stage, SystemId};
 pub use time::Time;

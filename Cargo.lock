@@ -508,6 +508,7 @@ checksum = "91622ff5e7162018101f2fea40d6ebf4a78bbe5a49736a2020649edf9693679e"
 name = "engine-assets"
 version = "0.1.0"
 dependencies = [
+ "crossbeam-channel",
  "engine-core",
  "engine-world",
  "serde",
@@ -555,6 +556,7 @@ name = "engine-render"
 version = "0.1.0"
 dependencies = [
  "bytemuck",
+ "crossbeam-channel",
  "engine-assets",
  "engine-core",
  "engine-world",
@@ -695,7 +697,6 @@ version = "0.1.0"
 dependencies = [
  "engine-assets",
  "engine-core",
- "engine-input",
  "engine-world",
  "glam",
  "hecs",

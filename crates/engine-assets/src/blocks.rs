@@ -14,7 +14,7 @@ pub struct BlockDefinition {
     pub color: [f32; 3],
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct BlockRegistry {
     by_id: HashMap<BlockId, BlockDefinition>,
     by_name: HashMap<String, BlockId>,

@@ -14,3 +14,4 @@ bytemuck = { workspace = true }
 pollster = { workspace = true }
 rayon = { workspace = true }
 log = { workspace = true }
+crossbeam-channel = { workspace = true }

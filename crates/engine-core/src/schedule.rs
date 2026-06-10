@@ -1,5 +1,7 @@
 use std::collections::HashMap;
 
+use crate::resources::Resources;
+
 /// Execution stages run in declaration order each tick.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum Stage {
@@ -23,6 +25,7 @@ impl Stage {
 }
 
 pub type SystemFn = fn(&mut crate::app::SystemContext<'_>);
+pub type RunCondition = fn(&Resources) -> bool;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct SystemId(u32);
@@ -32,6 +35,7 @@ pub struct SystemEntry {
     pub id: SystemId,
     pub function: SystemFn,
     pub after: Vec<SystemId>,
+    pub run_if: Option<RunCondition>,
 }
 
 pub struct Schedule {
@@ -50,6 +54,15 @@ impl Default for Schedule {
 
 impl Schedule {
     pub fn add_system(&mut self, stage: Stage, function: SystemFn) -> SystemId {
+        self.add_system_with_condition(stage, function, None)
+    }
+
+    pub fn add_system_with_condition(
+        &mut self,
+        stage: Stage,
+        function: SystemFn,
+        run_if: Option<RunCondition>,
+    ) -> SystemId {
         let id = SystemId(self.next_id);
         self.next_id += 1;
         self.systems
@@ -59,6 +72,7 @@ impl Schedule {
                 id,
                 function,
                 after: Vec::new(),
+                run_if,
             });
         id
     }
@@ -69,6 +83,16 @@ impl Schedule {
         function: SystemFn,
         after: SystemId,
     ) -> SystemId {
+        self.add_system_after_with_condition(stage, function, after, None)
+    }
+
+    pub fn add_system_after_with_condition(
+        &mut self,
+        stage: Stage,
+        function: SystemFn,
+        after: SystemId,
+        run_if: Option<RunCondition>,
+    ) -> SystemId {
         let id = SystemId(self.next_id);
         self.next_id += 1;
         self.systems
@@ -78,6 +102,7 @@ impl Schedule {
                 id,
                 function,
                 after: vec![after],
+                run_if,
             });
         id
     }

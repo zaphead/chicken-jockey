@@ -8,7 +8,8 @@ use tokio::runtime::Runtime;
 
 use crate::cert::{client_config, server_config};
 use crate::codec::{
-    decode_client_packet, decode_server_packet, encode_client_packet, encode_server_packet,
+    client_packet_uses_datagram, decode_client_packet, decode_server_packet,
+    encode_client_packet, encode_server_packet, server_packet_uses_datagram,
 };
 use crate::messages::{ClientPacket, ServerPacket, DEFAULT_PORT};
 
@@ -182,13 +183,38 @@ async fn handle_server_connection(
         .expect("outbound senders")
         .insert(client_id, server_out_tx);
 
+    let connection_out = connection.clone();
     let outbound_task = tokio::spawn(async move {
         while let Ok(packet) = server_out_rx.recv() {
-            if write_packet(&mut send, &encode_server_packet(&packet))
+            if server_packet_uses_datagram(&packet) {
+                let bytes = encode_server_packet(&packet);
+                if connection_out.send_datagram(bytes.into()).is_err() {
+                    break;
+                }
+            } else if write_packet(&mut send, &encode_server_packet(&packet))
                 .await
                 .is_err()
             {
                 break;
+            }
+        }
+    });
+
+    let connection_in = connection.clone();
+    let datagram_inbound = inbound.clone();
+    let datagram_task = tokio::spawn(async move {
+        loop {
+            match connection_in.read_datagram().await {
+                Ok(bytes) => match decode_client_packet(&bytes) {
+                    Ok(ClientPacket::Input(_)) => {
+                        if let Ok(packet) = decode_client_packet(&bytes) {
+                            let _ = datagram_inbound.send((client_id, packet));
+                        }
+                    }
+                    Ok(_) => log::warn!("unexpected client datagram packet type"),
+                    Err(error) => log::warn!("server datagram decode error: {error:?}"),
+                },
+                Err(_) => break,
             }
         }
     });
@@ -200,15 +226,16 @@ async fn handle_server_connection(
                 Err(_) => break,
             };
             match decode_client_packet(&bytes) {
+                Ok(ClientPacket::Input(_)) => {}
                 Ok(packet) => {
                     let _ = inbound.send((client_id, packet));
                 }
-                Err(error) => log::warn!("server decode error: {error:?}"),
+                Err(error) => log::warn!("server stream decode error: {error:?}"),
             }
         }
     });
 
-    let _ = tokio::join!(outbound_task, inbound_task);
+    let _ = tokio::join!(outbound_task, inbound_task, datagram_task);
     outbound_senders
         .lock()
         .expect("outbound senders")
@@ -233,13 +260,38 @@ async fn handle_client_connection(
         let _ = inbound_tx.send(ServerPacket::Welcome { player_id: id });
     }
 
+    let connection_out = connection.clone();
     let outbound_task = tokio::spawn(async move {
         while let Ok(packet) = outbound_rx.recv() {
-            if write_packet(&mut send, &encode_client_packet(&packet))
+            if client_packet_uses_datagram(&packet) {
+                let bytes = encode_client_packet(&packet);
+                if connection_out.send_datagram(bytes.into()).is_err() {
+                    break;
+                }
+            } else if write_packet(&mut send, &encode_client_packet(&packet))
                 .await
                 .is_err()
             {
                 break;
+            }
+        }
+    });
+
+    let connection_in = connection.clone();
+    let datagram_inbound = inbound_tx.clone();
+    let datagram_task = tokio::spawn(async move {
+        loop {
+            match connection_in.read_datagram().await {
+                Ok(bytes) => match decode_server_packet(&bytes) {
+                    Ok(ServerPacket::EntitySnapshots(_)) => {
+                        if let Ok(packet) = decode_server_packet(&bytes) {
+                            let _ = datagram_inbound.send(packet);
+                        }
+                    }
+                    Ok(_) => log::warn!("unexpected server datagram packet type"),
+                    Err(error) => log::warn!("client datagram decode error: {error:?}"),
+                },
+                Err(_) => break,
             }
         }
     });
@@ -251,15 +303,16 @@ async fn handle_client_connection(
                 Err(_) => break,
             };
             match decode_server_packet(&bytes) {
+                Ok(ServerPacket::EntitySnapshots(_)) => {}
                 Ok(packet) => {
                     let _ = inbound_tx.send(packet);
                 }
-                Err(error) => log::warn!("client decode error: {error:?}"),
+                Err(error) => log::warn!("client stream decode error: {error:?}"),
             }
         }
     });
 
-    let _ = tokio::join!(outbound_task, inbound_task);
+    let _ = tokio::join!(outbound_task, inbound_task, datagram_task);
     Ok(())
 }
 

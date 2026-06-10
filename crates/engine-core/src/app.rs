@@ -3,7 +3,7 @@ use hecs::World;
 use crate::commands::Commands;
 use crate::events::Events;
 use crate::resources::Resources;
-use crate::schedule::{Schedule, Stage, SystemFn, SystemId};
+use crate::schedule::{RunCondition, Schedule, Stage, SystemFn, SystemId};
 use crate::time::Time;
 
 pub struct SystemContext<'a> {
@@ -54,6 +54,16 @@ impl App {
         self.schedule.add_system(stage, system)
     }
 
+    pub fn add_system_with_condition(
+        &mut self,
+        stage: Stage,
+        system: SystemFn,
+        run_if: RunCondition,
+    ) -> SystemId {
+        self.schedule
+            .add_system_with_condition(stage, system, Some(run_if))
+    }
+
     pub fn add_system_after(
         &mut self,
         stage: Stage,
@@ -66,6 +76,11 @@ impl App {
     pub fn run_stage(&mut self, stage: Stage) {
         let systems = self.schedule.sort_stage(stage);
         for entry in systems {
+            if let Some(run_if) = entry.run_if {
+                if !run_if(&self.resources) {
+                    continue;
+                }
+            }
             let mut context = SystemContext {
                 world: &mut self.world,
                 resources: &mut self.resources,

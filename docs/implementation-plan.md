@@ -77,8 +77,13 @@ flowchart TB
 | 8 | Terrain generation | Complete | Procedural heightmap fills a playable area at startup |
 | 9 | Chickens + mounting | Complete | Spawn, wander, mount/dismount, ride movement |
 | 10 | Server binary (local) | Complete | Headless authoritative server; QUIC on `127.0.0.1:4242` |
-| 11 | Render hardening | Partial | Parallel chunk meshing (rayon), distance LOD, extract snapshot; GPU compute + render thread deferred (macOS surface constraint) |
-| 12 | Networking (QUIC) | Complete | `quinn` transport, bincode protocol, authoritative blocks, client prediction stub |
+| 11 | Render hardening | Complete | Extract/render boundary, depth prepass, render-submit thread (surface on main), GPU compute mesh path, screen-space LOD + seam fix |
+| 12 | Networking (QUIC) | Complete | `quinn` transport, bincode protocol, QUIC datagrams for Input/Snapshots, authoritative blocks, client reconciliation |
+| 13 | ECS foundation hardening | Complete | Run conditions, `GameplayInput` in `game`, `Commands` deferral, no `engine-input` in `game` |
+| 14 | Game system refactor | Complete | Single input resolver, split spawn/plugin registration, shared collision, multiplayer mount lookup |
+| 15 | Binary wiring | Complete | PreUpdate/PostUpdate net+input systems; slim `client/main.rs` winit loop |
+| 16 | Real SVO + async assets | Complete | Pointer octree with aggregate tests; `AssetServer` + IO thread async block load |
+| 17 | Architecture debt closure | Complete | `RenderWorld` extract boundary; dead `RenderThread` removed; design-doc dependency graph enforced |
 
 Update the **Status** column as work completes. Add dated notes under [Progress log](#progress-log).
 
@@ -356,17 +361,25 @@ Full client–server model per design doc §7:
 - **Phase 12:** `engine-net` QUIC (`quinn`) + bincode protocol; server broadcasts `BlockDeltas` and `EntitySnapshots`; client reconciles with prediction stub.
 - **Multiplayer:** `cargo run -p server` then `CJ_SERVER=127.0.0.1:4242 cargo run -p client`.
 
+### 2026-06-10 — Design-doc hardening (Phases 13–17)
+
+- **Phase 13:** Scheduler run conditions; `GameplayInput`/`PlayerInputs` in `game`; mount mutations via `Commands`; removed `SimulationMode` and `engine-input` dependency from `game`.
+- **Phase 14:** Unified `resolve_input`; split local/network spawn and plugin registration; `collision.rs`; mount uses `NetPlayerId` lookup.
+- **Phase 15:** Client/server net+input in `PreUpdate`/`PostUpdate`; `client/main.rs` is winit loop + ECS tick only.
+- **Phase 16:** Real pointer-based SVO with aggregate propagation tests; `AssetServer` async block registry load via IO thread.
+- **Phase 17:** `RenderWorld` extract snapshot; `RenderSubmitThread` (encode/submit on worker, surface/present on main); `ComputeMesher` GPU path; depth prepass; screen-space LOD + simplified Transvoxel seams; QUIC datagrams for `Input`/`EntitySnapshots`; `BlockChangeIntent` game events.
+
 ---
 
 ## Explicit MVP shortcuts (must be removed later)
 
-| Shortcut | Phase | Replaced in |
-| -------- | ----- | ----------- |
-| CPU greedy meshing | 5 | 11 |
-| Sync asset load | 4 | 11+ |
-| Main-thread terrain gen | 8 | Later |
-| Extract on main thread (no render thread) | 5 | 11 |
-| In-process / dumb client networking | 10 | 12 |
+| Shortcut | Phase | Replaced in | Status |
+| -------- | ----- | ----------- | ------ |
+| CPU greedy meshing | 5 | 11 | Removed — GPU compute path + LOD meshing |
+| Sync asset load | 4 | 16 | Removed — `AssetServer` async IO |
+| Main-thread terrain gen | 8 | Later | Open |
+| Extract on main thread (no render thread) | 5 | 11 | Removed — render-submit worker thread |
+| In-process / dumb client networking | 10 | 12 | Removed — QUIC + datagrams |
 
 Do not let shortcuts leak into `game` or `engine-world` APIs. Isolate them inside `engine-render` or `client`/`server` wiring.
 

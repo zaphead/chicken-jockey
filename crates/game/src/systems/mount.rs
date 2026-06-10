@@ -1,30 +1,29 @@
 use engine_core::SystemContext;
-use engine_input::InputState;
 use glam::Vec3;
 use hecs::Entity;
 
 use crate::components::{Collider, Mounted, Mountable, Player, Rider, Transform, Velocity};
+use crate::input::{local_player_entity, resolve_input};
+use crate::systems::physics::collision::collides_aabb;
 
 const MOUNT_RANGE: f32 = 2.5;
 const MOUNT_SPEED: f32 = 10.0;
 
 pub fn mount_system(ctx: &mut SystemContext<'_>) {
-    let Some(input) = ctx.resources.get::<InputState>().cloned() else {
+    let Some(player_entity) = local_player_entity(ctx) else {
+        return;
+    };
+    let net_id = ctx
+        .world
+        .get::<&crate::components::NetPlayerId>(player_entity)
+        .ok()
+        .map(|id| id.0);
+    let Some(input) = resolve_input(ctx, net_id) else {
         return;
     };
     if !input.interact {
         return;
     }
-
-    let player_entity = ctx
-        .world
-        .query::<&Player>()
-        .iter()
-        .next()
-        .map(|(entity, _)| entity);
-    let Some(player_entity) = player_entity else {
-        return;
-    };
 
     if ctx.world.get::<&Mounted>(player_entity).is_ok() {
         dismount_player(ctx, player_entity);
@@ -55,14 +54,16 @@ pub fn mount_system(ctx: &mut SystemContext<'_>) {
         return;
     };
 
-    ctx.world
-        .insert_one(player_entity, Mounted { mount: mount_entity })
-        .expect("insert mounted");
-    ctx.world
-        .insert_one(mount_entity, Rider {
-            rider: player_entity,
-        })
-        .expect("insert rider");
+    ctx.commands.push(move |world| {
+        world
+            .insert_one(player_entity, Mounted { mount: mount_entity })
+            .expect("insert mounted");
+        world
+            .insert_one(mount_entity, Rider {
+                rider: player_entity,
+            })
+            .expect("insert rider");
+    });
 }
 
 fn dismount_player(ctx: &mut SystemContext<'_>, player_entity: Entity) {
@@ -91,25 +92,27 @@ fn dismount_player(ctx: &mut SystemContext<'_>, player_entity: Entity) {
         velocity.0 = Vec3::ZERO;
     }
 
-    let _ = ctx.world.remove_one::<Mounted>(player_entity);
-    let _ = ctx.world.remove_one::<Rider>(mount_entity);
+    ctx.commands.push(move |world| {
+        let _ = world.remove_one::<Mounted>(player_entity);
+        let _ = world.remove_one::<Rider>(mount_entity);
+    });
 }
 
-pub fn dismount_system(_ctx: &mut SystemContext<'_>) {}
-
 pub fn mounted_movement_system(ctx: &mut SystemContext<'_>) {
-    let Some(input) = ctx.resources.get::<InputState>().cloned() else {
-        return;
-    };
-
-    let pairs: Vec<(Entity, Entity)> = ctx
+    let pairs: Vec<(Entity, Entity, Option<u32>)> = ctx
         .world
-        .query::<(&Player, &Mounted)>()
+        .query::<(&Player, &Mounted, Option<&crate::components::NetPlayerId>)>()
         .iter()
-        .map(|(player_entity, (_, mounted))| (player_entity, mounted.mount))
+        .map(|(player_entity, (_, mounted, net_id))| {
+            (player_entity, mounted.mount, net_id.map(|id| id.0))
+        })
         .collect();
 
-    for (player_entity, mount_entity) in pairs {
+    for (player_entity, mount_entity, net_id) in pairs {
+        let Some(input) = resolve_input(ctx, net_id) else {
+            continue;
+        };
+
         let Ok(mut mount_transform) = ctx.world.get::<&mut Transform>(mount_entity) else {
             continue;
         };
@@ -141,6 +144,9 @@ pub fn mounted_physics_system(ctx: &mut SystemContext<'_>) {
         .map(|time| time.delta)
         .unwrap_or(0.0);
 
+    let registry = ctx.resources.get::<engine_assets::BlockRegistry>();
+    let world = ctx.resources.get::<engine_world::SparseVoxelOctree>();
+
     let mounts: Vec<(Entity, Vec3, Vec3, Vec3)> = ctx
         .world
         .query::<(&Player, &Mounted)>()
@@ -168,7 +174,13 @@ pub fn mounted_physics_system(ctx: &mut SystemContext<'_>) {
                 continue;
             }
             position[axis] += delta_axis;
-            if crate::systems::player::collides_at(ctx, position, half_extents) {
+            let blocked = match (world, registry) {
+                (Some(world), Some(registry)) => {
+                    collides_aabb(world, registry, position, half_extents)
+                }
+                _ => false,
+            };
+            if blocked {
                 position[axis] -= delta_axis;
                 velocity[axis] = 0.0;
             }
