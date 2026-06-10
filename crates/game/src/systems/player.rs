@@ -9,8 +9,8 @@ use crate::axes::{grounded_probe_offset, UP};
 use crate::components::{Collider, GroundContact, Mounted, NetPlayerId, Player, Transform, Velocity};
 use crate::input::resolve_input;
 use crate::movement::{
-    accelerate_horizontal, apply_horizontal_drag, wish_direction_horizontal, AIR_ACCEL_FACTOR,
-    AIR_DRAG, AIR_SPEED_FACTOR, GROUND_ACCEL, LocomotionConfig, MOUSE_SENSITIVITY,
+    accelerate_horizontal, apply_horizontal_drag, apply_look_delta, wish_direction_horizontal,
+    AIR_ACCEL_FACTOR, AIR_DRAG, AIR_SPEED_FACTOR, GROUND_ACCEL, LocomotionConfig,
 };
 use crate::play_mode::{ActivePlayMode, PlayMode};
 use crate::systems::physics::collision::collides_aabb;
@@ -44,9 +44,7 @@ pub fn player_look_system(ctx: &mut SystemContext<'_>) {
             continue;
         };
         if let Ok(mut transform) = ctx.world.get::<&mut Transform>(entity) {
-            transform.yaw += input.look_delta.x * MOUSE_SENSITIVITY;
-            transform.pitch = (transform.pitch - input.look_delta.y * MOUSE_SENSITIVITY)
-                .clamp(-1.5, 1.5);
+            apply_look_delta(&mut transform, input.look_delta);
         }
     }
 }
@@ -55,7 +53,11 @@ pub fn player_movement_system(ctx: &mut SystemContext<'_>) {
     if !survival_active(ctx) {
         return;
     }
-    let delta = ctx.resources.get::<Time>().map(|time| time.delta).unwrap_or(0.0);
+    let delta = ctx
+        .resources
+        .get::<Time>()
+        .map(|time| time.fixed_delta)
+        .unwrap_or(0.0);
     let config = LocomotionConfig::for_mode(PlayMode::Survival);
     let mounted = mounted_players(ctx);
     let players: Vec<(Entity, Option<u32>, Vec3, Vec3)> = ctx
@@ -138,7 +140,11 @@ pub fn player_physics_system(ctx: &mut SystemContext<'_>) {
     if !survival_active(ctx) {
         return;
     }
-    let delta = ctx.resources.get::<Time>().map(|time| time.delta).unwrap_or(0.0);
+    let delta = ctx
+        .resources
+        .get::<Time>()
+        .map(|time| time.fixed_delta)
+        .unwrap_or(0.0);
     let mounted = mounted_players(ctx);
 
     let updates: Vec<(Entity, Vec3, Vec3, Vec3)> = ctx

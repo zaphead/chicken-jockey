@@ -38,7 +38,11 @@ pub fn spectator_camera_system(ctx: &mut SystemContext<'_>) {
         return;
     }
 
-    let delta = ctx.resources.get::<engine_core::Time>().map(|t| t.delta).unwrap_or(0.0);
+    let delta = ctx
+        .resources
+        .get::<engine_core::Time>()
+        .map(|t| t.frame_delta)
+        .unwrap_or(0.0);
     let player_id = ctx
         .resources
         .get::<LocalPlayerId>()
@@ -66,4 +70,8 @@ pub fn spectator_camera_system(ctx: &mut SystemContext<'_>) {
     }
 
     camera.position += camera.velocity * delta;
+
+    if let Some(inputs) = ctx.resources.get_mut::<game::PlayerInputs>() {
+        inputs.clear_look(player_id);
+    }
 }

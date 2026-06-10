@@ -103,12 +103,18 @@ impl App {
         }
     }
 
-    pub fn tick_with_render(&mut self) {
-        for &stage in Stage::ORDER {
+    pub fn tick_fixed_step(&mut self) {
+        for stage in [Stage::Update, Stage::Physics, Stage::PostUpdate] {
             self.run_stage(stage);
             if stage == Stage::PostUpdate {
                 self.commands.flush(&mut self.world);
             }
+        }
+    }
+
+    pub fn tick_render(&mut self) {
+        for stage in [Stage::Extract, Stage::Render] {
+            self.run_stage(stage);
         }
     }
 

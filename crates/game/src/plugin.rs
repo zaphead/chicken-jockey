@@ -16,8 +16,11 @@ pub fn register_player_spawn_systems(app: &mut App) {
     app.add_system(Stage::PostUpdate, spawn_network_player_system);
 }
 
-pub fn register_player_systems(app: &mut App) {
+pub fn register_player_look_system(app: &mut App) {
     app.add_system(Stage::Update, player_look_system);
+}
+
+pub fn register_player_systems(app: &mut App) {
     app.add_system(Stage::Update, player_movement_system);
     app.add_system(Stage::Physics, player_physics_system);
 }
@@ -29,6 +32,7 @@ pub fn register_authoritative_block_system(app: &mut App) {
 pub fn register_server_systems(app: &mut App) {
     register_world_systems(app);
     register_player_spawn_systems(app);
+    register_player_look_system(app);
     register_player_systems(app);
     register_authoritative_block_system(app);
 }

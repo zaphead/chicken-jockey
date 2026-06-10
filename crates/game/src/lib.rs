@@ -23,8 +23,8 @@ pub use input::{
 };
 pub use mode::{AuthoritativeServer, NetworkClient};
 pub use movement::{
-    accelerate_toward, apply_ice_drag, max_speed, wish_direction_fly, wish_direction_horizontal,
-    LocomotionConfig, MOUSE_SENSITIVITY,
+    accelerate_toward, apply_ice_drag, apply_look_delta, max_speed, wish_direction_fly,
+    wish_direction_horizontal, LocomotionConfig, MOUSE_SENSITIVITY,
 };
 pub use debug_world::{iter_mesh_chunks, ActiveDebugWorld, DebugWorldKind};
 pub use play_mode::{ActivePlayMode, PlayMode};

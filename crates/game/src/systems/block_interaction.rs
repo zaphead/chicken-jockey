@@ -23,7 +23,7 @@ pub fn block_interaction_system(ctx: &mut SystemContext<'_>) {
         return;
     }
 
-    let tick = ctx.resources.get::<Time>().map(|time| time.tick).unwrap_or(0);
+    let tick = ctx.resources.get::<Time>().map(|time| time.sim_tick).unwrap_or(0);
     if tick % BLOCK_INTERACTION_INTERVAL != 0 {
         return;
     }

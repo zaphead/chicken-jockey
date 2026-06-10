@@ -13,12 +13,14 @@ use game::{
 };
 
 use crate::systems::input::PendingWinitInput;
+use crate::systems::interpolation::PreviousPlayerTransform;
 use crate::systems::register_client_schedule;
 use crate::systems::spectator::reset_spectator_for_world;
 
 /// Shared ECS resources for client, tests, and diagnostics (no block registry or textures).
 pub fn bootstrap_client_shell(app: &mut App) {
     app.insert_resource(PlayerInputs::default());
+    app.insert_resource(PreviousPlayerTransform::default());
     app.insert_resource(PendingWinitInput(InputState::default()));
     app.insert_resource(SparseVoxelOctree::default());
     app.insert_resource(BiomeMap::default());
@@ -51,7 +53,7 @@ pub fn bootstrap_client_resources(app: &mut App, manifest_dir: &str) {
 }
 
 /// Shared client ECS bootstrap for the game binary, diagnostics, and tests.
-pub fn bootstrap_local_app(time: engine_core::Time) -> App {
+pub fn bootstrap_local_app(time: engine_core::Time) -> engine_core::App {
     let mut app = App::new();
     app.insert_resource(time);
     bootstrap_client_shell(&mut app);

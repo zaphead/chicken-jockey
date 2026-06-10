@@ -39,7 +39,7 @@ These rules encode lessons from the thermo-nuclear code-quality audit and the de
 
 ### Binary responsibilities
 
-**`client/main.rs`** must stay a winit loop: window lifecycle, input event forwarding, `ecs.tick_with_render()`, renderer creation. It must not own mesh caches, chunk queues, block-change drains, net packet handling, or terrain orchestration.
+**`client/main.rs`** must stay a winit loop: window lifecycle, input event forwarding, `run_client_frame()`, renderer creation. It must not own mesh caches, chunk queues, block-change drains, net packet handling, or terrain orchestration.
 
 **`server/main.rs`** must stay a tick loop: fixed timestep, schedule tick, sleep. No gameplay branches inline.
 

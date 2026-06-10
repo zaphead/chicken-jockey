@@ -10,6 +10,9 @@ use game::{
 };
 
 use crate::mesh_pipeline::{bootstrap_terrain_meshes, rebuild_budget_for_extract, rebuild_chunk_meshes};
+use crate::systems::interpolation::{
+    lerp_transform_snapshot, PreviousPlayerTransform, TransformSnapshot,
+};
 use crate::systems::spectator::SpectatorCamera;
 
 pub fn sync_block_changes_system(ctx: &mut SystemContext<'_>) {
@@ -55,7 +58,7 @@ pub fn extract_render_world_system(ctx: &mut SystemContext<'_>) {
     let animation_tick = ctx
         .resources
         .get::<Time>()
-        .map(|time| (time.elapsed * 1000.0) as u32)
+        .map(|time| time.sim_tick as u32)
         .unwrap_or(0);
 
     let Some(materials) = ctx.resources.get::<Arc<ResolvedBlockMaterials>>().cloned() else {
@@ -134,10 +137,22 @@ fn extract_camera(ctx: &SystemContext<'_>, aspect: f32) -> Camera {
     if survival {
         if let Some(entity) = local_player_entity(ctx) {
             if let Ok(transform) = ctx.world.get::<&Transform>(entity) {
+                let alpha = ctx
+                    .resources
+                    .get::<Time>()
+                    .map(|time| time.interpolation_alpha)
+                    .unwrap_or(0.0);
+                let previous = ctx
+                    .resources
+                    .get::<PreviousPlayerTransform>()
+                    .and_then(|prev| prev.0)
+                    .unwrap_or_else(|| TransformSnapshot::from(&*transform));
+                let rendered = lerp_transform_snapshot(previous, &transform, alpha);
                 return Camera {
-                    position: transform.position + glam::Vec3::new(0.0, 0.0, PLAYER_EYE_OFFSET_Z),
-                    yaw: transform.yaw,
-                    pitch: transform.pitch,
+                    position: rendered.position
+                        + glam::Vec3::new(0.0, 0.0, PLAYER_EYE_OFFSET_Z),
+                    yaw: rendered.yaw,
+                    pitch: rendered.pitch,
                     aspect,
                     ..Camera::default()
                 };

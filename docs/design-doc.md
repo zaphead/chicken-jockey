@@ -217,7 +217,27 @@ Message serialization uses `bincode`. The wire format is always versioned. Break
 
 ### 7.4 Server Tick vs. Client Frame
 
-The server runs on a fixed-rate game tick, independent of any render loop. The client runs on a variable frame rate with a fixed-rate physics/simulation step. Network updates are sent and received at defined intervals, decoupled from both. These rates are operational parameters, not architecture — they are configurable at runtime, not hardcoded in logic.
+Three operational rates exist; only the first is authoritative for gameplay:
+
+| Clock | Rate | Owner |
+| ----- | ---- | ----- |
+| **Sim tick** | 60 Hz (`SIM_HZ` in `engine-core`) | Server; client matches via fixed steps |
+| **Render frame** | Variable (display refresh) | Client only |
+| **Net send/recv** | Per render frame today (PreUpdate); may throttle later | Client/server binaries |
+
+The server runs a fixed-rate sim tick loop independent of any render loop. The client accumulates wall-clock frame time and drains zero or more fixed sim steps per render frame (Glenn Fiedler accumulator). Rendering never drives gameplay math.
+
+**Client stage contract (each render frame):**
+
+1. **Once:** poll input → `PreUpdate` (assets, input sync, local look, spectator, net).
+2. **0–N times:** `advance_fixed()` → `Update` → `Physics` → `PostUpdate` → `end_frame()`.
+3. **Once:** set interpolation alpha → `Extract` → `Render`.
+
+Mouse look is applied once per render frame in client `PreUpdate`. Movement and physics integrate with `fixed_delta` each sim step. Extract interpolates the local player camera between previous and current sim poses using `interpolation_alpha`.
+
+**Subsystem divisors:** slower logic (future circuits/electricity, crop-style random ticks) runs on `sim_tick % N == 0` via scheduler run conditions—not a separate clock. Example: `N = 3` ≈ 20 Hz from a 60 Hz base. Circuit propagation should use explicit produce/consume stages and events, never render or implicit neighbor order.
+
+Network tick indices on wire messages are deferred until reconciliation/rollback work; sim tick is still the in-process authority counter today.
 
 ---
 

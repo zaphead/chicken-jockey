@@ -4,7 +4,7 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use engine_assets::{blocks_asset_path, load_block_registry, AssetServer};
-use engine_core::{App, Time};
+use engine_core::{App, Time, SIM_DT, SIM_HZ};
 use engine_net::NetServer;
 use engine_world::{SparseVoxelOctree, WorldMutationQueue};
 use game::{
@@ -13,13 +13,11 @@ use game::{
 };
 use systems::{register_server_schedule, ServerNet};
 
-const TICK_RATE: f32 = 60.0;
-
 fn main() {
     env_logger::init();
 
     let mut app = App::new();
-    app.insert_resource(Time::new(1.0 / TICK_RATE));
+    app.insert_resource(Time::new(SIM_DT));
     app.insert_resource(AuthoritativeServer);
     app.insert_resource(PlayerInputs::default());
     app.insert_resource(SparseVoxelOctree::default());
@@ -43,7 +41,8 @@ fn main() {
     app.insert_resource(ServerNet(net));
     log::info!("Chicken Jockey server listening on {addr}");
 
-    let tick_duration = Duration::from_secs_f32(1.0 / TICK_RATE);
+    let tick_duration = Duration::from_secs_f32(SIM_DT);
+    log::info!("Chicken Jockey server sim rate: {SIM_HZ} Hz");
     loop {
         let frame_start = Instant::now();
 

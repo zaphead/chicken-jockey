@@ -384,6 +384,12 @@ Full client–server model per design doc §7:
 - `UvLayoutId` + `BlockMaterialMap` in `engine-assets`; mesher resolves face UVs by block id + normal.
 - Artist spec: `assets/textures/README.md`; template `layouts/cube_v1_template.png`; `cargo run -p engine-assets --bin generate-block-textures`.
 
+### 2026-06-10 — Fixed timestep timing
+
+- `engine-core`: `SIM_HZ`/`SIM_DT`, accumulator on `Time`, `tick_fixed_step()`, `tick_render()` = Extract + Render only.
+- Client: `run_client_frame` (PreUpdate once → N fixed sim steps → interpolate → render); look once in PreUpdate; spectator uses `frame_delta`.
+- Server: shared `SIM_DT`; design-doc §7.4 documents sim/render/net clocks and subsystem divisors for future circuits.
+
 ### 2026-06-10 — Design-doc hardening (Phases 13–17)
 
 - **Phase 13:** Scheduler run conditions; `GameplayInput`/`PlayerInputs` in `game`; mount mutations via `Commands`; removed `SimulationMode` and `engine-input` dependency from `game`.

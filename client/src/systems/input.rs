@@ -1,8 +1,51 @@
 use engine_core::SystemContext;
 use engine_input::InputState;
-use game::{ActivePlayMode, GameplayInput, LocalPlayerId, PlayMode, PlayerInputs};
+use game::{
+    apply_look_delta, local_player_entity, ActivePlayMode, GameplayInput, LocalPlayerId, PlayMode,
+    PlayerInputs, Transform,
+};
 
 pub struct PendingWinitInput(pub InputState);
+
+pub fn apply_local_look_system(ctx: &mut SystemContext<'_>) {
+    if ctx
+        .resources
+        .get::<ActivePlayMode>()
+        .is_some_and(|mode| mode.0 != PlayMode::Survival)
+    {
+        return;
+    }
+
+    let player_id = ctx
+        .resources
+        .get::<LocalPlayerId>()
+        .and_then(|local| local.id)
+        .unwrap_or(0);
+
+    let Some(input) = ctx
+        .resources
+        .get::<PlayerInputs>()
+        .and_then(|inputs| inputs.get(player_id))
+    else {
+        return;
+    };
+
+    if input.look_delta.length_squared() == 0.0 {
+        return;
+    }
+
+    let Some(entity) = local_player_entity(ctx) else {
+        return;
+    };
+
+    if let Ok(mut transform) = ctx.world.get::<&mut Transform>(entity) {
+        apply_look_delta(&mut transform, input.look_delta);
+    }
+
+    if let Some(inputs) = ctx.resources.get_mut::<PlayerInputs>() {
+        inputs.clear_look(player_id);
+    }
+}
 
 pub fn sync_local_input_system(ctx: &mut SystemContext<'_>) {
     let pending = ctx.resources.get::<PendingWinitInput>().expect("pending input");

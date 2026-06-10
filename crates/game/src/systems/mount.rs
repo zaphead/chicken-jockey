@@ -142,7 +142,7 @@ pub fn mounted_physics_system(ctx: &mut SystemContext<'_>) {
     let delta = ctx
         .resources
         .get::<engine_core::Time>()
-        .map(|time| time.delta)
+        .map(|time| time.fixed_delta)
         .unwrap_or(0.0);
 
     let registry = ctx.resources.get::<engine_assets::BlockRegistry>();

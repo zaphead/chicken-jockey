@@ -1,6 +1,7 @@
 use glam::{Vec2, Vec3};
 
 use crate::axes::{horizontal_forward, horizontal_right, UP};
+use crate::components::Transform;
 use crate::play_mode::PlayMode;
 
 pub const BASE_WALK_SPEED: f32 = 5.1;
@@ -40,6 +41,12 @@ impl LocomotionConfig {
             },
         }
     }
+}
+
+pub fn apply_look_delta(transform: &mut Transform, look_delta: Vec2) {
+    transform.yaw += look_delta.x * MOUSE_SENSITIVITY;
+    transform.pitch =
+        (transform.pitch - look_delta.y * MOUSE_SENSITIVITY).clamp(-1.5, 1.5);
 }
 
 pub fn max_speed(config: LocomotionConfig, sprint: bool) -> f32 {

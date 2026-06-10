@@ -67,7 +67,11 @@ pub fn chicken_spawn_system(ctx: &mut SystemContext<'_>) {
 }
 
 pub fn chicken_wander_system(ctx: &mut SystemContext<'_>) {
-    let delta = ctx.resources.get::<Time>().map(|time| time.delta).unwrap_or(0.0);
+    let delta = ctx
+        .resources
+        .get::<Time>()
+        .map(|time| time.fixed_delta)
+        .unwrap_or(0.0);
     let registry = ctx.resources.get::<BlockRegistry>();
     let world = ctx.resources.get::<SparseVoxelOctree>();
 

@@ -3,13 +3,14 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use engine_assets::ResolvedBlockMaterials;
-use engine_core::{App, Time};
+use engine_core::{App, Time, SIM_DT};
 use engine_input::{apply_mouse_motion, apply_winit_event, InputState};
 use engine_net::NetClient;
 use engine_render::{RenderSurfaceInfo, RenderWorld, Renderer};
 use game::{register_local_client_systems, register_network_client_systems, NetworkClient};
 
 use client::bootstrap::{bootstrap_client_resources, bootstrap_client_shell};
+use client::frame::run_client_frame;
 use client::systems::input::PendingWinitInput;
 use client::diagnostics::ClientDiagnostics;
 use client::systems::net::ClientNet;
@@ -38,7 +39,7 @@ struct ClientApp {
 impl ClientApp {
     fn new() -> Self {
         let mut ecs = App::new();
-        ecs.insert_resource(Time::new(1.0 / 60.0));
+        ecs.insert_resource(Time::new(SIM_DT));
         bootstrap_client_shell(&mut ecs);
         bootstrap_client_resources(&mut ecs, env!("CARGO_MANIFEST_DIR"));
 
@@ -69,18 +70,14 @@ impl ClientApp {
 
     fn tick(&mut self, event_loop: &ActiveEventLoop) {
         let now = Instant::now();
-        let delta = (now - self.last_frame).as_secs_f32().min(0.05);
+        let delta = (now - self.last_frame).as_secs_f32();
         self.last_frame = now;
 
-        if let Some(time) = self.ecs.resource_mut::<Time>() {
-            time.advance_variable(delta);
-        }
         if let Some(pending) = self.ecs.resource_mut::<PendingWinitInput>() {
             pending.0 = self.input.clone();
         }
 
-        self.ecs.tick_with_render();
-        self.ecs.end_frame();
+        run_client_frame(&mut self.ecs, delta);
         self.input.clear_frame_state();
         self.frame += 1;
 

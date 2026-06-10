@@ -1,5 +1,6 @@
 use client::bootstrap::bootstrap_local_app;
-use engine_core::Time;
+use client::frame::run_client_frame;
+use engine_core::{Time, SIM_DT};
 use engine_render::RenderWorld;
 use engine_world::{BlockPos, SparseVoxelOctree};
 use game::{
@@ -9,11 +10,10 @@ use game::{
 
 #[test]
 fn headless_pipeline_builds_terrain_and_meshes() {
-    let mut app = bootstrap_local_app(Time::new(1.0 / 60.0));
+    let mut app = bootstrap_local_app(Time::new(SIM_DT));
 
     for _ in 0..300 {
-        app.tick_with_render();
-        app.end_frame();
+        run_client_frame(&mut app, SIM_DT);
     }
 
     let registry = app.resource::<engine_assets::BlockRegistry>().expect("registry");

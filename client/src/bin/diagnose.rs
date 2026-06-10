@@ -1,17 +1,17 @@
 //! Headless client pipeline diagnostic — no window required.
 use client::bootstrap::bootstrap_local_app;
 use client::diagnostics::ClientDiagnostics;
-use engine_core::Time;
+use client::frame::run_client_frame;
+use engine_core::{Time, SIM_DT};
 
 fn main() {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
 
-    let mut app = bootstrap_local_app(Time::new(1.0 / 60.0));
+    let mut app = bootstrap_local_app(Time::new(SIM_DT));
     let mut last_mesh_count = 0usize;
 
     for frame in 1..=300 {
-        app.tick_with_render();
-        app.end_frame();
+        run_client_frame(&mut app, SIM_DT);
 
         last_mesh_count = app
             .resource::<engine_render::RenderWorld>()

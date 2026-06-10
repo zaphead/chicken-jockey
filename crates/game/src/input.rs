@@ -44,6 +44,12 @@ impl PlayerInputs {
             input.clear_frame();
         }
     }
+
+    pub fn clear_look(&mut self, player_id: u32) {
+        if let Some(input) = self.inputs.get_mut(&player_id) {
+            input.look_delta = Vec2::ZERO;
+        }
+    }
 }
 
 /// Local client's assigned network player id (None until Welcome in network mode).
