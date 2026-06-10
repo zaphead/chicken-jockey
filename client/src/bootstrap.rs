@@ -8,8 +8,9 @@ use engine_input::InputState;
 use engine_render::{RenderExtractState, RenderSurfaceInfo, RenderWorld};
 use engine_world::{BiomeMap, SparseVoxelOctree, WorldMutationQueue};
 use game::{
-    register_local_client_systems, ActiveDebugWorld, ActivePlayMode, DebugWorldKind, LocalPlayerId,
-    PlayerInputs, TerrainGeneration, WorldInitialized, WorldSeed,
+    register_local_client_systems, ActiveDebugWorld, ActivePlayMode, DebugWorldKind,
+    DisplayedPlayerView, LocalPlayerId, PlayerInputs, TerrainGeneration, WorldInitialized,
+    WorldSeed,
 };
 
 use crate::systems::input::PendingWinitInput;
@@ -36,6 +37,7 @@ pub fn bootstrap_client_shell(app: &mut App) {
     app.insert_resource(RenderSurfaceInfo::default());
     app.insert_resource(reset_spectator_for_world(DebugWorldKind::Flat, seed_value));
     app.insert_resource(ActivePlayMode::default());
+    app.insert_resource(DisplayedPlayerView::default());
     app.insert_resource(ActiveDebugWorld::default());
 }
 

@@ -3,7 +3,7 @@ use glam::Vec3;
 
 use crate::axes::PLAYER_HALF_EXTENTS;
 use crate::components::{
-    Collider, GroundContact, NetPlayerId, Player, Transform, Velocity, WorldInitialized,
+    Collider, LocomotionState, NetPlayerId, Player, Transform, Velocity, WorldInitialized,
     WorldSeed,
 };
 use crate::input::LocalPlayerId;
@@ -105,7 +105,7 @@ pub fn spawn_net_player(
             pitch,
         },
         Velocity::default(),
-        GroundContact::default(),
+        LocomotionState::default(),
         Collider {
             half_extents: PLAYER_HALF_EXTENTS,
         },

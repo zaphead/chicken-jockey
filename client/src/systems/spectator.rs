@@ -1,8 +1,8 @@
 use engine_core::SystemContext;
 use game::{
-    player_ground_center_z_at, resolve_input, accelerate_toward, apply_ice_drag, max_speed,
-    wish_direction_fly, ActivePlayMode, DebugWorldKind, LocalPlayerId, LocomotionConfig,
-    MOUSE_SENSITIVITY, PlayMode,
+    player_ground_center_z_at, resolve_input, accelerate_toward, apply_ice_drag, max_fly_speed,
+    wish_direction_fly, ActivePlayMode, DebugWorldKind, LocalPlayerId, MOUSE_SENSITIVITY,
+    PlayMode,
 };
 use glam::Vec3;
 
@@ -58,9 +58,8 @@ pub fn spectator_camera_system(ctx: &mut SystemContext<'_>) {
     camera.yaw += input.look_delta.x * MOUSE_SENSITIVITY;
     camera.pitch = (camera.pitch - input.look_delta.y * MOUSE_SENSITIVITY).clamp(-1.5, 1.5);
 
-    let config = LocomotionConfig::for_mode(PlayMode::Spectator);
     let wish = wish_direction_fly(camera.yaw, input.move_axis, input.vertical_axis);
-    let speed = max_speed(config, input.sprint);
+    let speed = max_fly_speed(input.sprint);
 
     if wish.length_squared() > 0.0 {
         let target = wish * speed;

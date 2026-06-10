@@ -16,15 +16,15 @@ pub use axes::{
     grounded_probe_offset, horizontal_forward, horizontal_right, view_forward,
     PLAYER_EYE_OFFSET_Z, PLAYER_HALF_EXTENTS, UP,
 };
-pub use components::{TerrainGeneration, *};
+pub use components::{DisplayedPlayerView, TerrainGeneration, *};
 pub use events::{BlockChangeIntent, PlayerStateChanged};
 pub use input::{
     local_player_entity, resolve_input, GameplayInput, LocalPlayerId, PlayerInputs,
 };
 pub use mode::{AuthoritativeServer, NetworkClient};
 pub use movement::{
-    accelerate_toward, apply_ice_drag, apply_look_delta, max_speed, wish_direction_fly,
-    wish_direction_horizontal, LocomotionConfig, MOUSE_SENSITIVITY,
+    accelerate_toward, apply_ice_drag, apply_look_delta, max_fly_speed, wish_direction_fly,
+    wish_direction_horizontal, MOUSE_SENSITIVITY,
 };
 pub use debug_world::{iter_mesh_chunks, ActiveDebugWorld, DebugWorldKind};
 pub use play_mode::{ActivePlayMode, PlayMode};
@@ -36,7 +36,7 @@ pub use plugin::{
 pub use systems::terrain::{
     player_ground_center_z_at, player_spawn_center_z, player_spawn_center_z_at,
     terrain_surface_z, FLAT_SURFACE_Z, FLAT_WORLD_RADIUS, GRASS_PLANE_Z,
-    PLAYER_SPAWN_AIRBORNE_BLOCKS, PLAYER_SPAWN_PITCH, WORLD_RADIUS,
+    PLAYER_SPAWN_PITCH, WORLD_RADIUS,
 };
 pub use systems::spawn_net_player;
 pub use voxel_raycast::{

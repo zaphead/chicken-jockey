@@ -11,9 +11,7 @@ pub const FLAT_SURFACE_Z: i32 = 4;
 pub const GRASS_PLANE_Z: i32 = FLAT_SURFACE_Z;
 
 const PLAYER_HALF_HEIGHT: f32 = 1.0;
-pub const PLAYER_SPAWN_AIRBORNE_BLOCKS: f32 = 200.0;
-/// ~77° below horizon — look at the ground while dropping in.
-pub const PLAYER_SPAWN_PITCH: f32 = -1.35;
+pub const PLAYER_SPAWN_PITCH: f32 = -0.25;
 
 pub fn generate_terrain_system(ctx: &mut SystemContext<'_>) {
     let Some(progress) = ctx.resources.get::<TerrainGeneration>().copied() else {
@@ -88,7 +86,7 @@ pub fn player_ground_center_z_at(x: i32, y: i32, world: DebugWorldKind, seed: u3
 }
 
 pub fn player_spawn_center_z_at(x: i32, y: i32, world: DebugWorldKind, seed: u32) -> f32 {
-    player_ground_center_z_at(x, y, world, seed) + PLAYER_SPAWN_AIRBORNE_BLOCKS
+    player_ground_center_z_at(x, y, world, seed)
 }
 
 pub fn player_spawn_center_z(world: DebugWorldKind, seed: u32) -> f32 {

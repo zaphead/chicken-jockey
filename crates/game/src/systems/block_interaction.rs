@@ -4,15 +4,24 @@ use engine_world::{BlockPos, WorldMutationQueue};
 use glam::Vec3;
 use hecs::Entity;
 
-use crate::components::{Collider, Mounted, NetPlayerId, Player, Transform};
+use crate::axes::view_forward;
+use crate::components::{
+    Collider, DisplayedPlayerView, LocomotionState, Mounted, NetPlayerId, Player, Transform,
+};
+use crate::movement::MC_TICK_DT;
 use crate::events::BlockChangeIntent;
-use crate::input::resolve_input;
+use crate::input::{resolve_input, LocalPlayerId};
 use crate::play_mode::{ActivePlayMode, PlayMode};
 use crate::voxel_raycast::{
     block_overlaps_player, player_interaction_ray, raycast_voxel, BLOCK_REACH,
 };
 
-const BLOCK_INTERACTION_INTERVAL: u64 = 4;
+/// Vanilla place spacing is ~4 ticks at 20 Hz; this is ~3 ticks (~150 ms at 60 Hz).
+const PLACE_COOLDOWN_MC_TICKS: f32 = 3.0;
+
+fn place_cooldown_sim_steps(sim_dt: f32) -> u8 {
+    (PLACE_COOLDOWN_MC_TICKS * MC_TICK_DT / sim_dt).ceil() as u8
+}
 
 pub fn block_interaction_system(ctx: &mut SystemContext<'_>) {
     if ctx
@@ -20,11 +29,6 @@ pub fn block_interaction_system(ctx: &mut SystemContext<'_>) {
         .get::<ActivePlayMode>()
         .is_some_and(|mode| mode.0 != PlayMode::Survival)
     {
-        return;
-    }
-
-    let tick = ctx.resources.get::<Time>().map(|time| time.sim_tick).unwrap_or(0);
-    if tick % BLOCK_INTERACTION_INTERVAL != 0 {
         return;
     }
 
@@ -37,6 +41,13 @@ pub fn block_interaction_system(ctx: &mut SystemContext<'_>) {
     let Some(dirt) = registry.id_by_name("dirt") else {
         return;
     };
+
+    let sim_dt = ctx
+        .resources
+        .get::<Time>()
+        .map(|time| time.fixed_delta)
+        .unwrap_or(1.0 / 60.0);
+    let place_cooldown_reset = place_cooldown_sim_steps(sim_dt);
 
     let players: Vec<(Entity, Transform, Option<u32>, Vec3)> = ctx
         .world
@@ -53,6 +64,11 @@ pub fn block_interaction_system(ctx: &mut SystemContext<'_>) {
         .collect();
 
     for (player_entity, transform, net_id, half_extents) in players {
+        if let Ok(mut locomotion) = ctx.world.get::<&mut LocomotionState>(player_entity) {
+            if locomotion.place_cooldown > 0 {
+                locomotion.place_cooldown -= 1;
+            }
+        }
         if ctx.world.get::<&Mounted>(player_entity).is_ok() {
             continue;
         }
@@ -64,7 +80,8 @@ pub fn block_interaction_system(ctx: &mut SystemContext<'_>) {
             continue;
         }
 
-        let (origin, direction) = player_interaction_ray(&transform);
+        let (origin, direction) =
+            interaction_ray(ctx, net_id, &transform);
         let Some(world) = ctx.resources.get::<engine_world::SparseVoxelOctree>() else {
             return;
         };
@@ -77,7 +94,13 @@ pub fn block_interaction_system(ctx: &mut SystemContext<'_>) {
             hit.block_pos.0.y + hit.normal.y,
             hit.block_pos.0.z + hit.normal.z,
         );
+        let place_ready = ctx
+            .world
+            .get::<&LocomotionState>(player_entity)
+            .map(|locomotion| locomotion.place_cooldown == 0)
+            .unwrap_or(true);
         let can_place = input.place_block
+            && place_ready
             && !block_overlaps_player(transform.position, half_extents, place_pos);
 
         let Some(queue) = ctx.resources.get_mut::<WorldMutationQueue>() else {
@@ -96,6 +119,28 @@ pub fn block_interaction_system(ctx: &mut SystemContext<'_>) {
                 position: place_pos,
                 new_block: dirt,
             });
+            if let Ok(mut locomotion) = ctx.world.get::<&mut LocomotionState>(player_entity) {
+                locomotion.place_cooldown = place_cooldown_reset;
+            }
         }
     }
+}
+
+fn interaction_ray(
+    ctx: &SystemContext<'_>,
+    net_id: Option<u32>,
+    transform: &Transform,
+) -> (Vec3, Vec3) {
+    let local_id = ctx.resources.get::<LocalPlayerId>().and_then(|local| local.id);
+    let is_local = net_id == local_id;
+
+    if is_local {
+        if let Some(view) = ctx.resources.get::<DisplayedPlayerView>() {
+            if view.valid {
+                return (view.eye, view_forward(view.yaw, view.pitch));
+            }
+        }
+    }
+
+    player_interaction_ray(transform)
 }

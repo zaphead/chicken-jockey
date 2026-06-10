@@ -27,7 +27,7 @@ pub fn register_client_schedule(app: &mut engine_core::App) {
     app.add_system(Stage::PreUpdate, apply_local_look_system);
     app.add_system(Stage::PreUpdate, spectator_camera_system);
     app.add_system(Stage::PreUpdate, client_net_system);
-    app.add_system(Stage::Extract, sync_block_changes_system);
+    app.add_system(Stage::PostUpdate, sync_block_changes_system);
     app.add_system(Stage::Extract, queue_initial_world_meshes_system);
     app.add_system(Stage::Extract, extract_render_world_system);
     app.add_system(Stage::Extract, commit_player_transform_snapshot_system);

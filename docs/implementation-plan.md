@@ -221,18 +221,20 @@ Implement `engine-input`:
 
 Implement in `game`:
 
-- `Player` entity with `Transform`, `Velocity`, `Collider` (AABB).
+- `Player` entity with `Transform`, `Velocity`, `Collider` (AABB), `LocomotionState`.
 - `Camera` attached to player (first-person).
-- Movement system in `Update`; physics in `Physics` stage (add stage in this phase).
+- **Minecraft locomotion** (`movement/minecraft.rs`): MCPK horizontal momentum (`0.91` drag + input accel), vertical jump/gravity/drag, sprint-jump boost, 45° strafe multipliers, jump cooldown — constants defined at 20 Hz and scaled to `SIM_DT` (60 Hz) via `scale_mult` / `scale_add_per_tick`.
+- Single `player_locomotion_system` on `Stage::Physics` (horizontal velocity → jump → AABB integrate → post-move vertical).
+- Spectator fly isolated in `movement/spectator.rs` (frame-delta thrust, not MC physics).
 
 Physics MVP:
 
-- Gravity, ground collision via SVO voxel queries (design doc §9).
+- Ground collision via SVO voxel queries (design doc §9).
 - No separate terrain collider mesh.
 
 **Deliverables**
 
-- Player spawns above terrain, lands, walks and jumps.
+- Player spawns above terrain, lands, walks and jumps with MC-faithful airborne momentum.
 
 ---
 

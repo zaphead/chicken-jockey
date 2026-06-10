@@ -5,18 +5,17 @@ use engine_world::SparseVoxelOctree;
 use glam::{Vec2, Vec3};
 use hecs::Entity;
 
-use crate::axes::{grounded_probe_offset, UP};
-use crate::components::{Collider, GroundContact, Mounted, NetPlayerId, Player, Transform, Velocity};
+use crate::axes::{grounded_probe_offset, horizontal_forward};
+use crate::components::{
+    Collider, LocomotionState, Mounted, NetPlayerId, Player, Transform, Velocity,
+};
 use crate::input::resolve_input;
 use crate::movement::{
-    accelerate_horizontal, apply_horizontal_drag, apply_look_delta, wish_direction_horizontal,
-    AIR_ACCEL_FACTOR, AIR_DRAG, AIR_SPEED_FACTOR, GROUND_ACCEL, LocomotionConfig,
+    apply_vertical_post_move, jump_cooldown_sim_steps, update_horizontal_velocity,
+    wish_direction_horizontal, JUMP_VELOCITY, McMovementInput, MC_TICK_DT,
 };
 use crate::play_mode::{ActivePlayMode, PlayMode};
 use crate::systems::physics::collision::collides_aabb;
-
-const GRAVITY: f32 = 32.0;
-const JUMP_SPEED: f32 = 9.6;
 
 fn survival_active(ctx: &SystemContext<'_>) -> bool {
     ctx.resources
@@ -44,23 +43,25 @@ pub fn player_look_system(ctx: &mut SystemContext<'_>) {
             continue;
         };
         if let Ok(mut transform) = ctx.world.get::<&mut Transform>(entity) {
-            apply_look_delta(&mut transform, input.look_delta);
+            crate::movement::apply_look_delta(&mut transform, input.look_delta);
         }
     }
 }
 
-pub fn player_movement_system(ctx: &mut SystemContext<'_>) {
+pub fn player_locomotion_system(ctx: &mut SystemContext<'_>) {
     if !survival_active(ctx) {
         return;
     }
+
     let delta = ctx
         .resources
         .get::<Time>()
         .map(|time| time.fixed_delta)
         .unwrap_or(0.0);
-    let config = LocomotionConfig::for_mode(PlayMode::Survival);
+    let jump_cooldown_reset = jump_cooldown_sim_steps(delta);
     let mounted = mounted_players(ctx);
-    let players: Vec<(Entity, Option<u32>, Vec3, Vec3)> = ctx
+
+    let entities: Vec<(Entity, Option<u32>, Vec3, Vec3, f32)> = ctx
         .world
         .query::<(&Player, &Transform, &Collider, Option<&NetPlayerId>)>()
         .iter()
@@ -70,114 +71,102 @@ pub fn player_movement_system(ctx: &mut SystemContext<'_>) {
                 net_id.map(|id| id.0),
                 transform.position,
                 collider.half_extents,
+                transform.yaw,
             )
         })
         .collect();
 
-    for (entity, net_id, position, half_extents) in players {
+    for (entity, net_id, position, half_extents, yaw) in entities {
         if mounted.contains(&entity) {
             continue;
         }
         let Some(input) = resolve_input(ctx, net_id) else {
             continue;
         };
-        let Ok(mut velocity) = ctx.world.get::<&mut Velocity>(entity) else {
-            continue;
-        };
-        let Ok(transform) = ctx.world.get::<&Transform>(entity) else {
-            continue;
-        };
 
-        let wish = wish_direction_horizontal(transform.yaw, input.move_axis);
-        let grounded = is_grounded(ctx, position, half_extents);
-        let was_grounded = ctx
-            .world
-            .get::<&GroundContact>(entity)
-            .map(|contact| contact.grounded)
-            .unwrap_or(false);
-        let mut horiz = Vec2::new(velocity.0.x, velocity.0.y);
+        let on_ground = is_grounded(ctx, position, half_extents);
 
-        if grounded {
-            let speed = crate::movement::max_speed(config, input.sprint);
-            let target = Vec2::new(wish.x * speed, wish.y * speed);
-            if !was_grounded {
-                horiz = target;
-            } else {
-                horiz = accelerate_horizontal(horiz, target, GROUND_ACCEL * delta);
-            }
-        } else {
-            let air_speed_cap = if input.sprint {
-                crate::movement::max_speed(config, true)
-            } else {
-                crate::movement::max_speed(config, false) * AIR_SPEED_FACTOR
-            };
-            let air_accel_step = GROUND_ACCEL * AIR_ACCEL_FACTOR * delta;
-            if wish.length_squared() > 0.0 {
-                let wish_h = Vec2::new(wish.x, wish.y);
-                let along = horiz.dot(wish_h);
-                if along < air_speed_cap {
-                    horiz += wish_h * air_accel_step.min(air_speed_cap - along);
-                }
-            } else {
-                horiz = apply_horizontal_drag(horiz, AIR_DRAG, delta);
-            }
-        }
-
-        velocity.0.x = horiz.x;
-        velocity.0.y = horiz.y;
-
-        if input.jump && grounded {
-            velocity.0.z = JUMP_SPEED;
-        }
-
-        if let Ok(mut contact) = ctx.world.get::<&mut GroundContact>(entity) {
-            contact.grounded = grounded;
-        }
-    }
-}
-
-pub fn player_physics_system(ctx: &mut SystemContext<'_>) {
-    if !survival_active(ctx) {
-        return;
-    }
-    let delta = ctx
-        .resources
-        .get::<Time>()
-        .map(|time| time.fixed_delta)
-        .unwrap_or(0.0);
-    let mounted = mounted_players(ctx);
-
-    let updates: Vec<(Entity, Vec3, Vec3, Vec3)> = ctx
-        .world
-        .query::<(&Player, &Transform, &Velocity, &Collider)>()
-        .iter()
-        .filter(|(entity, _)| !mounted.contains(entity))
-        .map(|(entity, (_, transform, velocity, collider))| {
-            (entity, transform.position, velocity.0, collider.half_extents)
-        })
-        .collect();
-
-    for (entity, start_position, mut velocity, half_extents) in updates {
-        velocity -= UP * GRAVITY * delta;
-        let mut position = start_position;
-
-        for axis in 0..3 {
-            let delta_axis = velocity[axis] * delta;
-            if delta_axis == 0.0 {
+        let mut position = position;
+        {
+            let Ok(mut velocity) = ctx.world.get::<&mut Velocity>(entity) else {
                 continue;
+            };
+            let Ok(mut locomotion) = ctx.world.get::<&mut LocomotionState>(entity) else {
+                continue;
+            };
+
+            let will_jump =
+                input.jump && locomotion.was_on_ground && locomotion.jump_cooldown == 0;
+
+            let wish = wish_direction_horizontal(yaw, input.move_axis);
+            let facing = horizontal_forward(yaw);
+            let mc_input = McMovementInput {
+                wish_dir: wish,
+                facing_dir: facing,
+                move_axis: input.move_axis,
+                sprint: input.sprint,
+            };
+
+            let mut horiz = Vec2::new(velocity.0.x, velocity.0.y);
+            locomotion.horizontal_tick_accum += delta;
+
+            if will_jump {
+                horiz = update_horizontal_velocity(
+                    horiz,
+                    &mc_input,
+                    locomotion.was_on_ground,
+                    on_ground,
+                    true,
+                    MC_TICK_DT,
+                );
+                velocity.0.z = JUMP_VELOCITY;
+                locomotion.jump_cooldown = jump_cooldown_reset;
+                locomotion.horizontal_tick_accum = locomotion
+                    .horizontal_tick_accum
+                    .rem_euclid(MC_TICK_DT);
+            } else {
+                while locomotion.horizontal_tick_accum >= MC_TICK_DT {
+                    locomotion.horizontal_tick_accum -= MC_TICK_DT;
+                    horiz = update_horizontal_velocity(
+                        horiz,
+                        &mc_input,
+                        locomotion.was_on_ground,
+                        on_ground,
+                        false,
+                        MC_TICK_DT,
+                    );
+                }
             }
-            position[axis] += delta_axis;
-            if collides_at(ctx, position, half_extents) {
-                position[axis] -= delta_axis;
-                velocity[axis] = 0.0;
+
+            velocity.0.x = horiz.x;
+            velocity.0.y = horiz.y;
+
+            let mut vel = velocity.0;
+
+            for axis in 0..3 {
+                let delta_axis = vel[axis] * delta;
+                if delta_axis == 0.0 {
+                    continue;
+                }
+                position[axis] += delta_axis;
+                if collides_at(ctx, position, half_extents) {
+                    position[axis] -= delta_axis;
+                    vel[axis] = 0.0;
+                }
+            }
+
+            vel.z = apply_vertical_post_move(vel.z, delta);
+
+            velocity.0 = vel;
+            locomotion.on_ground = on_ground;
+            locomotion.was_on_ground = on_ground;
+            if locomotion.jump_cooldown > 0 {
+                locomotion.jump_cooldown -= 1;
             }
         }
 
         if let Ok(mut transform) = ctx.world.get::<&mut Transform>(entity) {
             transform.position = position;
-        }
-        if let Ok(mut velocity_ref) = ctx.world.get::<&mut Velocity>(entity) {
-            velocity_ref.0 = velocity;
         }
     }
 }

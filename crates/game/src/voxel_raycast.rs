@@ -37,6 +37,10 @@ pub fn raycast_voxel(
         return None;
     }
 
+    // Nudge origin off voxel boundaries so floor() picks the containing cell correctly.
+    const ORIGIN_EPSILON: f32 = 1e-4;
+    let origin = origin + direction * ORIGIN_EPSILON;
+
     let mut t = 0.0;
     let mut current = origin.floor().as_ivec3();
     let step = direction.signum().as_ivec3();

@@ -6,7 +6,7 @@ use engine_render::{Camera, RenderExtractState, RenderSurfaceInfo, RenderWorld};
 use engine_world::{BiomeMap, SparseVoxelOctree, VoxelChanged};
 use game::{
     local_player_entity, raycast_voxel, ActiveDebugWorld, ActivePlayMode, DebugWorldKind,
-    PlayMode, Transform, WorldInitialized, BLOCK_REACH, PLAYER_EYE_OFFSET_Z,
+    DisplayedPlayerView, PlayMode, Transform, WorldInitialized, BLOCK_REACH, PLAYER_EYE_OFFSET_Z,
 };
 
 use crate::mesh_pipeline::{bootstrap_terrain_meshes, rebuild_budget_for_extract, rebuild_chunk_meshes};
@@ -20,9 +20,6 @@ pub fn sync_block_changes_system(ctx: &mut SystemContext<'_>) {
         return;
     };
     let changes: Vec<VoxelChanged> = ctx.events.drain::<VoxelChanged>();
-    if changes.len() > 64 {
-        return;
-    }
     for change in changes {
         state.mesh_cache.mark_dirty_neighbors(change.position);
     }
@@ -55,6 +52,14 @@ pub fn extract_render_world_system(ctx: &mut SystemContext<'_>) {
         .map(|info| info.aspect)
         .unwrap_or(16.0 / 9.0);
     let camera = extract_camera(ctx, aspect);
+    if let Some(view) = ctx.resources.get_mut::<DisplayedPlayerView>() {
+        *view = DisplayedPlayerView {
+            eye: camera.position,
+            yaw: camera.yaw,
+            pitch: camera.pitch,
+            valid: true,
+        };
+    }
     let animation_tick = ctx
         .resources
         .get::<Time>()

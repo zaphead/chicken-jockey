@@ -17,9 +17,23 @@ pub struct Transform {
 #[derive(Debug, Clone, Copy, Default)]
 pub struct Velocity(pub Vec3);
 
+/// Last rendered local-player eye pose (client Extract). Block interaction uses this so
+/// clicks match the crosshair rather than the raw sim transform.
 #[derive(Debug, Clone, Copy, Default)]
-pub struct GroundContact {
-    pub grounded: bool,
+pub struct DisplayedPlayerView {
+    pub eye: Vec3,
+    pub yaw: f32,
+    pub pitch: f32,
+    pub valid: bool,
+}
+
+#[derive(Debug, Clone, Copy, Default)]
+pub struct LocomotionState {
+    pub on_ground: bool,
+    pub was_on_ground: bool,
+    pub jump_cooldown: u8,
+    pub horizontal_tick_accum: f32,
+    pub place_cooldown: u8,
 }
 
 #[derive(Debug, Clone, Copy)]
