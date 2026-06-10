@@ -1,0 +1,16 @@
+[package]
+name = "client"
+version = "0.1.0"
+edition.workspace = true
+
+[dependencies]
+engine-core = { path = "../crates/engine-core" }
+engine-world = { path = "../crates/engine-world" }
+engine-render = { path = "../crates/engine-render" }
+engine-input = { path = "../crates/engine-input" }
+engine-assets = { path = "../crates/engine-assets" }
+game = { path = "../crates/game" }
+winit = { workspace = true }
+pollster = { workspace = true }
+env_logger = { workspace = true }
+log = { workspace = true }

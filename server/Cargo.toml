@@ -1,0 +1,13 @@
+[package]
+name = "server"
+version = "0.1.0"
+edition.workspace = true
+
+[dependencies]
+engine-core = { path = "../crates/engine-core" }
+engine-world = { path = "../crates/engine-world" }
+engine-assets = { path = "../crates/engine-assets" }
+engine-net = { path = "../crates/engine-net" }
+game = { path = "../crates/game" }
+env_logger = { workspace = true }
+log = { workspace = true }

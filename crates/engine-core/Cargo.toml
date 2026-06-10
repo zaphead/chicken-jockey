@@ -1,0 +1,8 @@
+[package]
+name = "engine-core"
+version = "0.1.0"
+edition.workspace = true
+
+[dependencies]
+hecs = { workspace = true }
+glam = { workspace = true }
