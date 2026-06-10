@@ -3,6 +3,7 @@ use engine_assets::{TextureAtlas, UvRect};
 use wgpu::util::DeviceExt;
 
 use crate::mesh::MeshVertex;
+use crate::mining_overlay::MiningOverlayPipeline;
 use crate::outline::OutlinePipeline;
 
 #[repr(C)]
@@ -23,6 +24,7 @@ pub struct RenderPipelines {
     pub opaque: wgpu::RenderPipeline,
     pub cutout: wgpu::RenderPipeline,
     pub outline: OutlinePipeline,
+    pub mining_overlay: MiningOverlayPipeline,
     pub scene_bind_group: wgpu::BindGroup,
     pub atlas_bind_group: wgpu::BindGroup,
     scene_buffer: wgpu::Buffer,
@@ -35,6 +37,7 @@ impl RenderPipelines {
         queue: &wgpu::Queue,
         surface_format: wgpu::TextureFormat,
         atlas: &TextureAtlas,
+        destroy_atlas: &TextureAtlas,
         colormap_rect: Option<UvRect>,
     ) -> Self {
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
@@ -253,12 +256,21 @@ impl RenderPipelines {
         let _ = (colormap_min, colormap_max);
 
         let outline = OutlinePipeline::new(device, surface_format, &scene_bind_group_layout);
+        let mining_overlay = MiningOverlayPipeline::new(
+            device,
+            queue,
+            surface_format,
+            &scene_bind_group_layout,
+            &atlas_bind_group_layout,
+            destroy_atlas,
+        );
 
         Self {
             depth,
             opaque,
             cutout,
             outline,
+            mining_overlay,
             scene_bind_group,
             atlas_bind_group,
             scene_buffer,

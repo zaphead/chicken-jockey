@@ -7,6 +7,7 @@ use serde::Deserialize;
 
 use crate::layouts::UvLayoutId;
 use crate::material::{DrawCategory, TintMode};
+use crate::tools::ToolClass;
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct OverlaySpec {
@@ -52,6 +53,16 @@ pub struct BlockDefinition {
     pub state_variants: Vec<StateVariantSpec>,
     #[serde(default)]
     pub ctm: Option<CtmSpec>,
+    #[serde(default = "default_hardness")]
+    pub hardness: f32,
+    #[serde(default)]
+    pub preferred_tool: Option<ToolClass>,
+    #[serde(default)]
+    pub requires_tool: bool,
+}
+
+fn default_hardness() -> f32 {
+    1.0
 }
 
 #[derive(Debug, Clone, Copy, Deserialize, Default)]
@@ -101,6 +112,22 @@ impl BlockRegistry {
 
     pub fn is_solid(&self, id: BlockId) -> bool {
         self.get(id).map(|block| block.solid).unwrap_or(false)
+    }
+
+    pub fn hardness(&self, id: BlockId) -> f32 {
+        self.get(id).map(|block| block.hardness).unwrap_or(1.0)
+    }
+
+    pub fn preferred_tool(&self, id: BlockId) -> Option<ToolClass> {
+        self.get(id).and_then(|block| block.preferred_tool)
+    }
+
+    pub fn requires_tool(&self, id: BlockId) -> bool {
+        self.get(id).is_some_and(|block| block.requires_tool)
+    }
+
+    pub fn is_breakable(&self, id: BlockId) -> bool {
+        self.hardness(id) >= 0.0
     }
 
     pub fn definitions(&self) -> impl Iterator<Item = &BlockDefinition> {

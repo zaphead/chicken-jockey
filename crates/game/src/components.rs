@@ -1,5 +1,7 @@
-use glam::Vec3;
+use engine_assets::ToolId;
+use glam::{IVec3, Vec3};
 use hecs::Entity;
+use engine_world::{BlockId, BlockPos};
 
 #[derive(Debug, Clone, Copy)]
 pub struct Player;
@@ -25,6 +27,41 @@ pub struct DisplayedPlayerView {
     pub yaw: f32,
     pub pitch: f32,
     pub valid: bool,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct HeldTool {
+    pub slots: [Option<ToolId>; 9],
+    pub selected: u8,
+}
+
+impl Default for HeldTool {
+    fn default() -> Self {
+        Self {
+            slots: [None; 9],
+            selected: 0,
+        }
+    }
+}
+
+impl HeldTool {
+    pub fn starter_loadout(pickaxe_id: ToolId) -> Self {
+        let mut slots = [None; 9];
+        slots[1] = Some(pickaxe_id);
+        Self { slots, selected: 0 }
+    }
+
+    pub fn active_tool(&self) -> Option<ToolId> {
+        self.slots[self.selected as usize]
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default)]
+pub struct BlockMiningState {
+    pub target: Option<BlockPos>,
+    pub target_block: BlockId,
+    pub face_normal: IVec3,
+    pub progress: f32,
 }
 
 #[derive(Debug, Clone, Copy, Default)]

@@ -27,7 +27,11 @@ pub struct Renderer {
 }
 
 impl Renderer {
-    pub fn new(window: Arc<Window>, materials: &ResolvedBlockMaterials) -> Self {
+    pub fn new(
+        window: Arc<Window>,
+        materials: &ResolvedBlockMaterials,
+        destroy_atlas: &engine_assets::TextureAtlas,
+    ) -> Self {
         let size = window.inner_size();
         let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
             backends: wgpu::Backends::all(),
@@ -84,6 +88,7 @@ impl Renderer {
             &queue,
             surface_format,
             &materials.atlas,
+            destroy_atlas,
             colormap_rect,
         );
 
@@ -253,6 +258,11 @@ impl Renderer {
             draw_meshes(&mut pass, &self.cutout_meshes);
         }
 
+        let mining_mesh = scene.mining_overlay.as_ref().map(|overlay| &overlay.mesh);
+        self.pipelines
+            .mining_overlay
+            .sync_overlay(&self.queue, mining_mesh);
+
         self.pipelines
             .outline
             .sync_block(&self.queue, scene.target_block);
@@ -283,6 +293,35 @@ impl Renderer {
                 &mut pass,
                 &self.pipelines.scene_bind_group,
                 outline_count,
+            );
+        }
+
+        if mining_mesh.is_some() {
+            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("mining_overlay_pass"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: &view,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Load,
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                    view: &self.depth_view,
+                    depth_ops: Some(wgpu::Operations {
+                        load: wgpu::LoadOp::Load,
+                        store: wgpu::StoreOp::Store,
+                    }),
+                    stencil_ops: None,
+                }),
+                occlusion_query_set: None,
+                timestamp_writes: None,
+            });
+            self.pipelines.mining_overlay.draw(
+                &mut pass,
+                &self.pipelines.scene_bind_group,
+                &self.pipelines.atlas_bind_group,
             );
         }
 

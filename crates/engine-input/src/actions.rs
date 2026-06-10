@@ -11,6 +11,7 @@ pub struct InputState {
     pub interact: bool,
     pub break_held: bool,
     pub place_held: bool,
+    pub selected_tool_slot: u8,
     pub cursor_locked: bool,
     pub toggle_play_mode: bool,
 }

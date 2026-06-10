@@ -98,5 +98,6 @@ fn input_to_packet(input: &engine_input::InputState) -> PlayerInput {
         interact: input.interact,
         break_block: input.break_held,
         place_block: input.place_held,
+        tool_slot: input.selected_tool_slot,
     }
 }

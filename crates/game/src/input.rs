@@ -13,6 +13,7 @@ pub struct GameplayInput {
     pub interact: bool,
     pub break_block: bool,
     pub place_block: bool,
+    pub tool_slot: u8,
 }
 
 impl GameplayInput {

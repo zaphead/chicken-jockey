@@ -2,7 +2,7 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use engine_assets::ResolvedBlockMaterials;
+use engine_assets::{load_destroy_stage_atlas, mining_textures_dir, ResolvedBlockMaterials};
 use engine_core::{App, Time, SIM_DT};
 use engine_input::{apply_mouse_motion, apply_winit_event, InputState};
 use engine_net::NetClient;
@@ -113,7 +113,9 @@ impl ClientApp {
             log::error!("renderer init failed: ResolvedBlockMaterials resource missing");
             return;
         };
-        let renderer = Renderer::new(window, &materials);
+        let destroy_atlas =
+            load_destroy_stage_atlas(&mining_textures_dir(env!("CARGO_MANIFEST_DIR")));
+        let renderer = Renderer::new(window, &materials, &destroy_atlas);
         self.ecs.insert_resource(ClientRenderer(renderer));
         if let Some(info) = self.ecs.resource_mut::<RenderSurfaceInfo>() {
             info.aspect = size.width as f32 / size.height.max(1) as f32;

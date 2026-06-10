@@ -1,6 +1,9 @@
+use engine_assets::ToolRegistry;
 use engine_core::SystemContext;
 use engine_render::{extract_render_scene, Renderer, RenderWorld};
-use game::{local_player_entity, ActiveDebugWorld, ActivePlayMode, Velocity};
+use game::{
+    local_player_entity, tool_label_for_held, ActiveDebugWorld, ActivePlayMode, HeldTool, Velocity,
+};
 use glam::Vec3;
 
 use crate::systems::hud::format_debug_hud;
@@ -10,10 +13,16 @@ pub struct ClientRenderer(pub Renderer);
 pub fn present_frame_system(ctx: &mut SystemContext<'_>) {
     let play_mode = ctx.resources.get::<ActivePlayMode>().map(|mode| mode.0);
     let debug_world = ctx.resources.get::<ActiveDebugWorld>().map(|active| active.0);
-    let velocity = local_player_entity(ctx)
+    let local_player = local_player_entity(ctx);
+    let velocity = local_player
         .and_then(|entity| ctx.world.get::<&Velocity>(entity).ok())
         .map(|velocity| velocity.0)
         .unwrap_or(Vec3::ZERO);
+    let tool_label = local_player
+        .and_then(|entity| ctx.world.get::<&HeldTool>(entity).ok())
+        .and_then(|held| ctx.resources.get::<ToolRegistry>().map(|tools| (held, tools)))
+        .map(|(held, tools)| tool_label_for_held(&held, tools))
+        .unwrap_or_else(|| "hand".to_string());
 
     let presented = ctx
         .resources
@@ -26,7 +35,8 @@ pub fn present_frame_system(ctx: &mut SystemContext<'_>) {
                 return false;
             }
 
-            let hud_text = format_debug_hud(&world.camera, play_mode, debug_world, velocity);
+            let hud_text =
+                format_debug_hud(&world.camera, play_mode, debug_world, velocity, &tool_label);
             renderer.0.sync_meshes(
                 world.mesh_generation,
                 &world.opaque,
@@ -39,6 +49,7 @@ pub fn present_frame_system(ctx: &mut SystemContext<'_>) {
                 world.animation_tick,
                 Vec::new(),
                 world.target_block,
+                world.mining_overlay.clone(),
             );
             if let Err(error) = renderer.0.render(&scene, Some(&hud_text)) {
                 log::warn!("render error: {error:?}");

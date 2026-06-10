@@ -2,11 +2,15 @@ use std::sync::Arc;
 
 use engine_assets::{BlockRegistry, ResolvedBlockMaterials};
 use engine_core::{SystemContext, Time};
-use engine_render::{Camera, RenderExtractState, RenderSurfaceInfo, RenderWorld};
+use engine_render::{
+    build_mining_overlay_mesh, Camera, MiningOverlay, RenderExtractState, RenderSurfaceInfo,
+    RenderWorld,
+};
 use engine_world::{BiomeMap, SparseVoxelOctree, VoxelChanged};
 use game::{
-    local_player_entity, raycast_voxel, ActiveDebugWorld, ActivePlayMode, DebugWorldKind,
-    DisplayedPlayerView, PlayMode, Transform, WorldInitialized, BLOCK_REACH, PLAYER_EYE_OFFSET_Z,
+    destroy_stage, local_player_entity, raycast_voxel, ActiveDebugWorld, ActivePlayMode,
+    BlockMiningState, DebugWorldKind, DisplayedPlayerView, PlayMode, Transform, WorldInitialized,
+    BLOCK_REACH, PLAYER_EYE_OFFSET_Z,
 };
 
 use crate::mesh_pipeline::{bootstrap_terrain_meshes, rebuild_budget_for_extract, rebuild_chunk_meshes};
@@ -120,6 +124,34 @@ pub fn extract_render_world_system(ctx: &mut SystemContext<'_>) {
         return;
     };
 
+    let mining_overlay = match (
+        ctx.resources.get::<engine_world::SparseVoxelOctree>(),
+        ctx.resources.get::<engine_assets::BlockRegistry>(),
+        local_player_entity(ctx),
+    ) {
+        (Some(world), Some(registry), Some(entity)) => ctx
+            .world
+            .get::<&BlockMiningState>(entity)
+            .ok()
+            .and_then(|mining| {
+                mining.target.map(|block_pos| {
+                    let cell = world.get_voxel(block_pos);
+                    MiningOverlay {
+                        mesh: build_mining_overlay_mesh(
+                            block_pos,
+                            destroy_stage(mining.progress),
+                            cell,
+                            world,
+                            registry,
+                            &materials,
+                            &biome,
+                        ),
+                    }
+                })
+            }),
+        _ => None,
+    };
+
     if let Some(render_world) = ctx.resources.get_mut::<RenderWorld>() {
         render_world.camera = camera;
         if let Some((opaque, cutout)) = mesh_update {
@@ -129,6 +161,7 @@ pub fn extract_render_world_system(ctx: &mut SystemContext<'_>) {
         }
         render_world.animation_tick = animation_tick;
         render_world.target_block = target_block;
+        render_world.mining_overlay = mining_overlay;
         render_world.ready = true;
     }
 }

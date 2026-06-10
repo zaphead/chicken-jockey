@@ -1,7 +1,8 @@
 use std::sync::Arc;
 
 use engine_assets::{
-    blocks_asset_path, load_block_registry, pack_block_materials, textures_asset_path, AssetServer,
+    blocks_asset_path, load_block_registry, load_tool_registry, pack_block_materials,
+    textures_asset_path, tools_asset_path, AssetServer,
 };
 use engine_core::App;
 use engine_input::InputState;
@@ -46,11 +47,13 @@ pub fn bootstrap_client_resources(app: &mut App, manifest_dir: &str) {
     let blocks_path = blocks_asset_path(manifest_dir);
     let textures_path = textures_asset_path(manifest_dir);
     let registry = load_block_registry(&blocks_path);
+    let tools = load_tool_registry(&tools_asset_path(manifest_dir));
     let packed = pack_block_materials(&textures_path, &registry).expect("pack block materials");
     let mut assets = AssetServer::default();
     assets.insert_blocks(registry.clone());
     app.insert_resource(assets);
     app.insert_resource(registry);
+    app.insert_resource(tools);
     app.insert_resource(Arc::new(packed));
 }
 

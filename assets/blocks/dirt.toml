@@ -2,3 +2,5 @@ id = 1
 layout = "cube_v1"
 name = "dirt"
 solid = true
+hardness = 0.5
+preferred_tool = "pickaxe"

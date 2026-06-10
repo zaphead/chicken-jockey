@@ -2,7 +2,13 @@ use engine_world::BlockPos;
 
 use crate::camera::Camera;
 use crate::mesh::SolidMesh;
+use crate::mining_overlay::MiningOverlayMesh;
 use crate::world_mesh::ChunkMeshCache;
+
+#[derive(Debug, Clone)]
+pub struct MiningOverlay {
+    pub mesh: MiningOverlayMesh,
+}
 
 #[derive(Debug, Default)]
 pub struct RenderWorld {
@@ -11,6 +17,7 @@ pub struct RenderWorld {
     pub cutout: SolidMesh,
     pub animation_tick: u32,
     pub target_block: Option<BlockPos>,
+    pub mining_overlay: Option<MiningOverlay>,
     pub mesh_generation: u64,
     pub ready: bool,
 }

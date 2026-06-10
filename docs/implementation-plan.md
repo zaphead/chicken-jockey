@@ -19,7 +19,7 @@
 
 Multiplayer, audio, advanced LOD, and polish are explicitly out of scope until after this loop works locally.
 
-**Current local client:** **Survival** / **Spectator** toggled with **M**; **Tab** cycles debug worlds (**3 blocks** ↔ **rolling hills**). HUD shows mode + world profile top-left. Block interaction and mobs still deferred (phases 7, 9).
+**Current local client:** **Survival** / **Spectator** toggled with **M**; **Tab** cycles debug worlds (**3 blocks** ↔ **rolling hills**). HUD shows mode + world profile + held tool top-left. LMB mines with progress; **1** = hand, **2** = wooden pickaxe. Mobs still deferred (phase 9).
 
 ---
 
@@ -75,7 +75,7 @@ flowchart TB
 | 4     | Block registry + data files  | Complete | Blocks defined in JSON/TOML; loaded into `BlockRegistry`                                                                           |
 | 5     | Voxel rendering (MVP)        | Complete | Greedy-meshed chunks visible; camera moves through scene                                                                           |
 | 6     | Input + player controller    | In progress | Survival mode on local client: WASD, Space jump, gravity, 2-block collider; Spectator via M toggle                               |
-| 7     | Block interaction            | Deferred | Not registered on local client until player controller returns                                                                     |
+| 7     | Block interaction            | Complete | Timed MC mining, wooden pickaxe tool slot (1–9), destroy-stage crack overlay                                                         |
 | 8     | Terrain generation           | Complete | Rolling hills: 2D value-noise heightmap, grass/dirt/stone columns, 128×128 radius                                                  |
 | 9     | Chickens + mounting          | Deferred | Mob systems unwired; focus on world + spectator camera first                                                                       |
 | 10    | Server binary (local)        | Complete | Headless authoritative server; QUIC on `127.0.0.1:4242`                                                                            |
@@ -391,6 +391,13 @@ Full client–server model per design doc §7:
 - `engine-core`: `SIM_HZ`/`SIM_DT`, accumulator on `Time`, `tick_fixed_step()`, `tick_render()` = Extract + Render only.
 - Client: `run_client_frame` (PreUpdate once → N fixed sim steps → interpolate → render); look once in PreUpdate; spectator uses `frame_delta`.
 - Server: shared `SIM_DT`; design-doc §7.4 documents sim/render/net clocks and subsystem divisors for future circuits.
+
+### 2026-06-10 — Survival mining + tools (Phase 7)
+
+- Block `hardness` / `preferred_tool` / `requires_tool` in `assets/blocks/*.toml`; `ToolRegistry` + `assets/tools/wooden_pickaxe.toml`.
+- `block_mining_system`: MC-faithful progress at 60 Hz; hand + pickaxe only (pickaxe mines dirt/grass/stone/leaves).
+- Whimscape `destroy_stage_0–9` crack overlay on mined face; wireframe outline hidden while mining.
+- Keys **1–9** select held-tool slot; debug HUD shows active tool.
 
 ### 2026-06-10 — Design-doc hardening (Phases 13–17)
 

@@ -1,4 +1,6 @@
 mod block_interaction;
+mod block_mining;
+mod held_tool;
 mod chicken;
 mod mount;
 mod mutation;
@@ -8,6 +10,8 @@ pub mod terrain;
 mod world_init;
 
 pub use block_interaction::block_interaction_system;
+pub use block_mining::block_mining_system;
+pub use held_tool::held_tool_select_system;
 pub use chicken::{chicken_spawn_system, chicken_wander_system};
 pub use mount::{mount_system, mounted_movement_system, mounted_physics_system};
 pub use mutation::flush_world_mutations_system;

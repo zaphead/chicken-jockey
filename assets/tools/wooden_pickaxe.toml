@@ -1,0 +1,4 @@
+id = 1
+name = "wooden_pickaxe"
+tool_class = "pickaxe"
+efficiency = 2.0

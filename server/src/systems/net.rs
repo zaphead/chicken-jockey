@@ -84,5 +84,6 @@ fn gameplay_from_packet(input: PlayerInput) -> GameplayInput {
         interact: input.interact,
         break_block: input.break_block,
         place_block: input.place_block,
+        tool_slot: input.tool_slot,
     }
 }

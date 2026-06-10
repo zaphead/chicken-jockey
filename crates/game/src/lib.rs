@@ -6,6 +6,7 @@ mod debug_world;
 mod events;
 mod input;
 mod mode;
+mod mining;
 mod movement;
 mod play_mode;
 mod plugin;
@@ -17,7 +18,8 @@ pub use axes::{
     PLAYER_EYE_OFFSET_Z, PLAYER_HALF_EXTENTS, UP,
 };
 pub use components::{DisplayedPlayerView, TerrainGeneration, *};
-pub use events::{BlockChangeIntent, PlayerStateChanged};
+pub use events::{BlockChangeIntent, BlockMiningProgress, PlayerStateChanged};
+pub use mining::{destroy_stage, tool_label_for_held};
 pub use input::{
     local_player_entity, resolve_input, GameplayInput, LocalPlayerId, PlayerInputs,
 };

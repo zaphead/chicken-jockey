@@ -1,9 +1,9 @@
 use engine_core::{App, Stage};
 
 use crate::systems::{
-    block_interaction_system, flush_world_mutations_system, generate_terrain_system,
-    player_look_system, player_locomotion_system, spawn_local_player_system,
-    spawn_network_player_system,
+    block_interaction_system, block_mining_system, flush_world_mutations_system,
+    generate_terrain_system, held_tool_select_system, player_look_system,
+    player_locomotion_system, spawn_local_player_system, spawn_network_player_system,
 };
 
 pub fn register_world_systems(app: &mut App) {
@@ -25,6 +25,8 @@ pub fn register_player_systems(app: &mut App) {
 }
 
 pub fn register_authoritative_block_system(app: &mut App) {
+    app.add_system(Stage::Update, held_tool_select_system);
+    app.add_system(Stage::Update, block_mining_system);
     app.add_system(Stage::Update, block_interaction_system);
 }
 

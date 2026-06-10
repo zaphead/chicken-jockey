@@ -21,6 +21,8 @@ pub struct PlayerInput {
     pub interact: bool,
     pub break_block: bool,
     pub place_block: bool,
+    #[serde(default)]
+    pub tool_slot: u8,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

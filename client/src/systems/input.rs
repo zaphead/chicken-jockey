@@ -69,6 +69,7 @@ pub fn sync_local_input_system(ctx: &mut SystemContext<'_>) {
         interact: pending.0.interact,
         break_block: pending.0.break_held,
         place_block: pending.0.place_held,
+        tool_slot: pending.0.selected_tool_slot,
     };
 
     if let Some(inputs) = ctx.resources.get_mut::<PlayerInputs>() {

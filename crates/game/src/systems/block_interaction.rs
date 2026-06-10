@@ -35,9 +35,6 @@ pub fn block_interaction_system(ctx: &mut SystemContext<'_>) {
     let Some(registry) = ctx.resources.get::<BlockRegistry>().cloned() else {
         return;
     };
-    let Some(air) = registry.id_by_name("air") else {
-        return;
-    };
     let Some(dirt) = registry.id_by_name("dirt") else {
         return;
     };
@@ -76,12 +73,11 @@ pub fn block_interaction_system(ctx: &mut SystemContext<'_>) {
         let Some(input) = resolve_input(ctx, net_id) else {
             continue;
         };
-        if !input.break_block && !input.place_block {
+        if !input.place_block {
             continue;
         }
 
-        let (origin, direction) =
-            interaction_ray(ctx, net_id, &transform);
+        let (origin, direction) = interaction_ray(ctx, net_id, &transform);
         let Some(world) = ctx.resources.get::<engine_world::SparseVoxelOctree>() else {
             return;
         };
@@ -99,29 +95,24 @@ pub fn block_interaction_system(ctx: &mut SystemContext<'_>) {
             .get::<&LocomotionState>(player_entity)
             .map(|locomotion| locomotion.place_cooldown == 0)
             .unwrap_or(true);
-        let can_place = input.place_block
-            && place_ready
+        let can_place = place_ready
             && !block_overlaps_player(transform.position, half_extents, place_pos);
+
+        if !can_place {
+            continue;
+        }
 
         let Some(queue) = ctx.resources.get_mut::<WorldMutationQueue>() else {
             return;
         };
 
-        if input.break_block {
-            queue.set_block(hit.block_pos, air);
-            ctx.events.send(BlockChangeIntent {
-                position: hit.block_pos,
-                new_block: air,
-            });
-        } else if can_place {
-            queue.set_block(place_pos, dirt);
-            ctx.events.send(BlockChangeIntent {
-                position: place_pos,
-                new_block: dirt,
-            });
-            if let Ok(mut locomotion) = ctx.world.get::<&mut LocomotionState>(player_entity) {
-                locomotion.place_cooldown = place_cooldown_reset;
-            }
+        queue.set_block(place_pos, dirt);
+        ctx.events.send(BlockChangeIntent {
+            position: place_pos,
+            new_block: dirt,
+        });
+        if let Ok(mut locomotion) = ctx.world.get::<&mut LocomotionState>(player_entity) {
+            locomotion.place_cooldown = place_cooldown_reset;
         }
     }
 }

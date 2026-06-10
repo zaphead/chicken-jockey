@@ -6,6 +6,7 @@ use glam::{IVec3, Vec3};
 use rayon::prelude::*;
 
 use crate::ctm::neighbor_mask_for_face;
+use crate::extract::MiningOverlay;
 use crate::mesh::{append_face, tint_index_for, MeshBuckets, SolidMesh};
 
 #[derive(Debug, Default, Clone)]
@@ -16,6 +17,7 @@ pub struct RenderScene {
     pub animation_tick: u32,
     pub entity_meshes: Vec<(glam::Vec3, SolidMesh)>,
     pub target_block: Option<BlockPos>,
+    pub mining_overlay: Option<MiningOverlay>,
 }
 
 pub const MAX_CHUNK_REBUILDS_PER_FRAME: usize = 8;
@@ -254,6 +256,7 @@ pub fn extract_render_scene(
     animation_tick: u32,
     entity_meshes: Vec<(glam::Vec3, SolidMesh)>,
     target_block: Option<BlockPos>,
+    mining_overlay: Option<MiningOverlay>,
 ) -> RenderScene {
     RenderScene {
         camera,
@@ -262,6 +265,7 @@ pub fn extract_render_scene(
         animation_tick,
         entity_meshes,
         target_block,
+        mining_overlay,
     }
 }
 

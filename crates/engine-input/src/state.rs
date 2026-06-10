@@ -51,6 +51,15 @@ fn apply_keyboard(input: &mut InputState, event: &KeyEvent) {
                 input.toggle_play_mode = true;
             }
         }
+        KeyCode::Digit1 if pressed => input.selected_tool_slot = 0,
+        KeyCode::Digit2 if pressed => input.selected_tool_slot = 1,
+        KeyCode::Digit3 if pressed => input.selected_tool_slot = 2,
+        KeyCode::Digit4 if pressed => input.selected_tool_slot = 3,
+        KeyCode::Digit5 if pressed => input.selected_tool_slot = 4,
+        KeyCode::Digit6 if pressed => input.selected_tool_slot = 5,
+        KeyCode::Digit7 if pressed => input.selected_tool_slot = 6,
+        KeyCode::Digit8 if pressed => input.selected_tool_slot = 7,
+        KeyCode::Digit9 if pressed => input.selected_tool_slot = 8,
         _ => {}
     }
 }

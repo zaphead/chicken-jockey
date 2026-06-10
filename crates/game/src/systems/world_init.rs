@@ -1,10 +1,11 @@
+use engine_assets::ToolRegistry;
 use engine_core::SystemContext;
 use glam::Vec3;
 
 use crate::axes::PLAYER_HALF_EXTENTS;
 use crate::components::{
-    Collider, LocomotionState, NetPlayerId, Player, Transform, Velocity, WorldInitialized,
-    WorldSeed,
+    BlockMiningState, Collider, HeldTool, LocomotionState, NetPlayerId, Player, Transform,
+    Velocity, WorldInitialized, WorldSeed,
 };
 use crate::input::LocalPlayerId;
 use crate::mode::NetworkClient;
@@ -96,6 +97,13 @@ pub fn spawn_net_player(
             PLAYER_SPAWN_PITCH,
         )
     });
+    let held_tool = ctx
+        .resources
+        .get::<ToolRegistry>()
+        .and_then(|registry| registry.id_by_name("wooden_pickaxe"))
+        .map(HeldTool::starter_loadout)
+        .unwrap_or_default();
+
     ctx.world.spawn((
         Player,
         NetPlayerId(player_id),
@@ -106,6 +114,8 @@ pub fn spawn_net_player(
         },
         Velocity::default(),
         LocomotionState::default(),
+        BlockMiningState::default(),
+        held_tool,
         Collider {
             half_extents: PLAYER_HALF_EXTENTS,
         },

@@ -1,10 +1,19 @@
 use engine_world::{BlockId, BlockPos};
+use glam::IVec3;
 
 /// Player intent to change a block; authoritative systems apply via `WorldMutationQueue`.
 #[derive(Debug, Clone, Copy)]
 pub struct BlockChangeIntent {
     pub position: BlockPos,
     pub new_block: BlockId,
+}
+
+/// Active mining progress for client overlay. `progress < 0` clears the overlay.
+#[derive(Debug, Clone, Copy)]
+pub struct BlockMiningProgress {
+    pub position: BlockPos,
+    pub face_normal: IVec3,
+    pub progress: f32,
 }
 
 /// Emitted after player transform changes for net translation.

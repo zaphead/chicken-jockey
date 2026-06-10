@@ -7,6 +7,7 @@ pub fn format_debug_hud(
     mode: Option<PlayMode>,
     world: Option<DebugWorldKind>,
     velocity: Vec3,
+    tool_label: &str,
 ) -> String {
     let mode_line = mode.map(PlayMode::label).unwrap_or("");
     let world_line = world.map(DebugWorldKind::label).unwrap_or("");
@@ -20,6 +21,7 @@ pub fn format_debug_hud(
     format!(
         "{mode_line}\n\
          {world_line}\n\
+         TOOL {tool_label}\n\
          POS\n\
          X {:>7.1}\n\
          Y {:>7.1}\n\
