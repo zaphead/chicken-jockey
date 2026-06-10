@@ -4,4 +4,4 @@ mod actions;
 mod state;
 
 pub use actions::{Action, InputState};
-pub use state::apply_winit_event;
+pub use state::{apply_mouse_motion, apply_winit_event};

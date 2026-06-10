@@ -44,7 +44,7 @@ impl ChunkMeshCache {
         world: &SparseVoxelOctree,
         registry: &BlockRegistry,
     ) -> usize {
-        self.rebuild_dirty_near(world, registry, Vec3::ZERO, f32::MAX, None)
+        self.rebuild_dirty_near(world, registry, Vec3::ZERO, f32::MAX)
     }
 
     pub fn has_dirty_chunks(&self) -> bool {
@@ -58,7 +58,6 @@ impl ChunkMeshCache {
         registry: &BlockRegistry,
         camera_position: Vec3,
         max_distance: f32,
-        compute: Option<&crate::compute_mesh::ComputeMesher>,
     ) -> usize {
         let max_distance_sq = max_distance * max_distance;
         let mut dirty: Vec<IVec3> = self
@@ -87,12 +86,8 @@ impl ChunkMeshCache {
         let rebuilt: Vec<(IVec3, SolidMesh)> = dirty
             .par_iter()
             .map(|chunk| {
-                let mesh = if let Some(mesher) = compute {
-                    mesher.mesh_chunk(world, registry, *chunk, camera_position)
-                } else {
-                    let step = lod_step_for_chunk(*chunk, camera_position);
-                    mesh_chunk_with_lod(world, registry, *chunk, step, camera_position)
-                };
+                let step = lod_step_for_chunk(*chunk, camera_position);
+                let mesh = mesh_chunk_with_lod(world, registry, *chunk, step, camera_position);
                 (*chunk, mesh)
             })
             .collect();

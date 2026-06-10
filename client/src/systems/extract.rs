@@ -2,11 +2,14 @@ use engine_assets::BlockRegistry;
 use engine_core::SystemContext;
 use engine_render::{
     cube_mesh, Camera, RenderExtractState, RenderSurfaceInfo, RenderWorld,
-    CHUNK_MESH_LOD_DISTANCE,
 };
-use engine_world::{BlockChanged, SparseVoxelOctree, CHUNK_SIZE};
-use game::{Player, Renderable, Transform, WorldInitialized, WORLD_RADIUS};
-use glam::{IVec3, Vec3};
+use engine_world::{BlockChanged, SparseVoxelOctree};
+use game::{local_player_entity, Renderable, Transform, WorldInitialized};
+use glam::Vec3;
+
+use crate::mesh_pipeline::{
+    enqueue_mesh_batch, queue_initial_world_chunks, rebuild_chunk_meshes,
+};
 
 pub fn sync_block_changes_system(ctx: &mut SystemContext<'_>) {
     let Some(state) = ctx.resources.get_mut::<RenderExtractState>() else {
@@ -30,29 +33,14 @@ pub fn queue_initial_world_meshes_system(ctx: &mut SystemContext<'_>) {
     let Some(state) = ctx.resources.get_mut::<RenderExtractState>() else {
         return;
     };
-    if state.world_mesh_queued {
-        return;
-    }
-    let radius = WORLD_RADIUS / CHUNK_SIZE + 1;
-    for cx in -radius..radius {
-        for cz in -radius..radius {
-            for cy in 0..2 {
-                state.world_mesh_queue.push(IVec3::new(cx, cy, cz));
-            }
-        }
-    }
-    state.world_mesh_queued = true;
+    queue_initial_world_chunks(state);
 }
 
 pub fn enqueue_world_mesh_batch_system(ctx: &mut SystemContext<'_>) {
-    const BATCH: usize = 16;
     let Some(state) = ctx.resources.get_mut::<RenderExtractState>() else {
         return;
     };
-    let batch = state.world_mesh_queue.len().min(BATCH);
-    for chunk in state.world_mesh_queue.drain(..batch) {
-        state.mesh_cache.mark_dirty(chunk);
-    }
+    enqueue_mesh_batch(state);
 }
 
 pub fn extract_render_world_system(ctx: &mut SystemContext<'_>) {
@@ -69,7 +57,7 @@ pub fn extract_render_world_system(ctx: &mut SystemContext<'_>) {
         .iter()
         .map(|(_, (transform, renderable))| {
             translate_mesh(
-                cube_mesh(IVec3::ZERO, renderable.size, renderable.color),
+                cube_mesh(glam::IVec3::ZERO, renderable.size, renderable.color),
                 transform.position - Vec3::splat(renderable.size * 0.5),
             )
         })
@@ -78,14 +66,7 @@ pub fn extract_render_world_system(ctx: &mut SystemContext<'_>) {
     let mut meshes = ctx
         .resources
         .with_triple::<SparseVoxelOctree, BlockRegistry, RenderExtractState, _>(|world, registry, state| {
-            let compute = state.compute_mesher.as_ref();
-            let _ = state.mesh_cache.rebuild_dirty_near(
-                world,
-                registry,
-                camera.position,
-                CHUNK_MESH_LOD_DISTANCE,
-                compute,
-            );
+            let _ = rebuild_chunk_meshes(state, world, registry, camera.position);
             state.mesh_cache.all_meshes()
         })
         .unwrap_or_default();
@@ -102,10 +83,12 @@ fn extract_camera(ctx: &SystemContext<'_>, aspect: f32) -> Camera {
     let mut camera = Camera::default();
     camera.aspect = aspect;
 
-    if let Some((_, (_, transform))) = ctx.world.query::<(&Player, &Transform)>().iter().next() {
-        camera.position = transform.position + Vec3::new(0.0, 1.6, 0.0);
-        camera.yaw = transform.yaw;
-        camera.pitch = transform.pitch;
+    if let Some(entity) = local_player_entity(ctx) {
+        if let Ok(transform) = ctx.world.get::<&Transform>(entity) {
+            camera.position = transform.position + Vec3::new(0.0, 1.6, 0.0);
+            camera.yaw = transform.yaw;
+            camera.pitch = transform.pitch;
+        }
     }
 
     camera

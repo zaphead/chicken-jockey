@@ -15,11 +15,17 @@ pub fn present_frame_system(ctx: &mut SystemContext<'_>) {
         return;
     };
     let Some(renderer) = ctx.resources.get_mut::<ClientRenderer>() else {
+        log::debug!("present skipped: renderer not ready");
         return;
     };
 
-    renderer.0.upload_meshes(&meshes);
+    if meshes.is_empty() {
+        log::debug!("present skipped: zero meshes in RenderWorld");
+        return;
+    }
+
     let scene = extract_render_scene(camera, meshes, Vec::new());
+    renderer.0.upload_meshes(&scene.chunk_meshes);
     if let Err(error) = renderer.0.render(&scene) {
         log::warn!("render error: {error:?}");
     }

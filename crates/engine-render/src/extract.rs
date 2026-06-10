@@ -1,5 +1,4 @@
 use crate::camera::Camera;
-use crate::compute_mesh::ComputeMesher;
 use crate::mesh::SolidMesh;
 use crate::world_mesh::ChunkMeshCache;
 
@@ -15,7 +14,6 @@ pub struct RenderExtractState {
     pub mesh_cache: ChunkMeshCache,
     pub world_mesh_queue: Vec<glam::IVec3>,
     pub world_mesh_queued: bool,
-    pub compute_mesher: Option<ComputeMesher>,
 }
 
 #[derive(Debug, Clone, Copy, Default)]

@@ -1,25 +1,23 @@
-mod systems;
-
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use engine_assets::{blocks_asset_path, AssetServer};
+use engine_assets::{blocks_asset_path, load_block_registry, AssetServer};
 use engine_core::{App, Time};
-use engine_input::{apply_winit_event, InputState};
+use engine_input::{apply_mouse_motion, apply_winit_event, InputState};
 use engine_net::NetClient;
-use engine_render::{
-    ComputeMesher, RenderExtractState, RenderSurfaceInfo, RenderWorld, Renderer,
-};
+use engine_render::{RenderExtractState, RenderSurfaceInfo, RenderWorld, Renderer};
 use engine_world::{SparseVoxelOctree, WorldMutationQueue};
 use game::{
     register_local_client_systems, register_network_client_systems, LocalPlayerId, NetworkClient,
     PlayerInputs, TerrainGeneration, WorldInitialized,
 };
-use systems::input::PendingWinitInput;
-use systems::net::ClientNet;
-use systems::present::ClientRenderer;
-use systems::register_client_schedule;
+
+use client::diagnostics::ClientDiagnostics;
+use client::systems::input::PendingWinitInput;
+use client::systems::net::ClientNet;
+use client::systems::present::ClientRenderer;
+use client::systems::register_client_schedule;
 use winit::application::ApplicationHandler;
 use winit::dpi::{PhysicalPosition, PhysicalSize};
 use winit::event::{DeviceEvent, ElementState, MouseButton, WindowEvent};
@@ -35,6 +33,8 @@ struct ClientApp {
     input: InputState,
     last_frame: Instant,
     window_centered: bool,
+    frame: u64,
+    diagnostic_mode: bool,
 }
 
 impl ClientApp {
@@ -52,9 +52,12 @@ impl ClientApp {
         ecs.insert_resource(RenderWorld::default());
         ecs.insert_resource(RenderSurfaceInfo::default());
 
+        let blocks_path = blocks_asset_path(env!("CARGO_MANIFEST_DIR"));
+        let registry = load_block_registry(&blocks_path);
         let mut assets = AssetServer::default();
-        assets.load_blocks(blocks_asset_path(env!("CARGO_MANIFEST_DIR")));
+        assets.insert_blocks(registry.clone());
         ecs.insert_resource(assets);
+        ecs.insert_resource(registry);
 
         if let Some(addr) = std::env::var("CJ_SERVER")
             .ok()
@@ -76,6 +79,8 @@ impl ClientApp {
             input: InputState::default(),
             last_frame: Instant::now(),
             window_centered: false,
+            frame: 0,
+            diagnostic_mode: std::env::var("CJ_DIAGNOSTIC").is_ok(),
         }
     }
 
@@ -94,6 +99,22 @@ impl ClientApp {
         self.ecs.tick_with_render();
         self.ecs.end_frame();
         self.input.clear_frame_state();
+        self.frame += 1;
+
+        if self.diagnostic_mode || self.frame == 1 || self.frame % 60 == 0 {
+            let presented = self
+                .ecs
+                .resource::<RenderWorld>()
+                .map(|world| world.meshes.len())
+                .unwrap_or(0);
+            let mut diag = ClientDiagnostics::sample(
+                &self.ecs,
+                self.ecs.resource::<ClientRenderer>().is_some(),
+                presented,
+            );
+            diag.frame = self.frame;
+            log::info!("cj diag: {}", diag.log_line());
+        }
 
         event_loop.set_control_flow(winit::event_loop::ControlFlow::WaitUntil(
             self.last_frame + Duration::from_secs_f32(1.0 / 60.0),
@@ -109,12 +130,6 @@ impl ClientApp {
         };
         log::info!("creating renderer at {}x{}", size.width, size.height);
         let renderer = Renderer::new(window);
-        if let Some(state) = self.ecs.resource_mut::<RenderExtractState>() {
-            state.compute_mesher = Some(ComputeMesher::new(
-                renderer.device().clone(),
-                renderer.queue().clone(),
-            ));
-        }
         self.ecs.insert_resource(ClientRenderer(renderer));
         if let Some(info) = self.ecs.resource_mut::<RenderSurfaceInfo>() {
             info.aspect = size.width as f32 / size.height.max(1) as f32;
@@ -169,9 +184,7 @@ impl ApplicationHandler for ClientApp {
                 }
             }
             WindowEvent::RedrawRequested => {
-                if self.ecs.resource::<ClientRenderer>().is_some() {
-                    self.tick(event_loop);
-                }
+                self.tick(event_loop);
             }
             WindowEvent::Occluded(false) => {
                 if let Some(window) = &self.window {
@@ -202,10 +215,7 @@ impl ApplicationHandler for ClientApp {
         event: DeviceEvent,
     ) {
         if let DeviceEvent::MouseMotion { delta } = event {
-            if self.input.cursor_locked {
-                self.input.look_delta.x += delta.0 as f32;
-                self.input.look_delta.y += delta.1 as f32;
-            }
+            apply_mouse_motion(&mut self.input, delta);
         }
     }
 

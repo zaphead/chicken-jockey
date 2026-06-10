@@ -6,12 +6,6 @@ use crate::actions::InputState;
 pub fn apply_winit_event(input: &mut InputState, event: &WindowEvent) {
     match event {
         WindowEvent::KeyboardInput { event, .. } => apply_keyboard(input, event),
-        WindowEvent::CursorMoved { position, .. } => {
-            if input.cursor_locked {
-                input.look_delta.x += position.x as f32;
-                input.look_delta.y += position.y as f32;
-            }
-        }
         WindowEvent::MouseInput { state, button, .. } => {
             let pressed = *state == ElementState::Pressed;
             match button {
@@ -21,6 +15,14 @@ pub fn apply_winit_event(input: &mut InputState, event: &WindowEvent) {
             }
         }
         _ => {}
+    }
+}
+
+/// Raw mouse deltas from `DeviceEvent::MouseMotion` (use when the cursor is grabbed).
+pub fn apply_mouse_motion(input: &mut InputState, delta: (f64, f64)) {
+    if input.cursor_locked {
+        input.look_delta.x += delta.0 as f32;
+        input.look_delta.y += delta.1 as f32;
     }
 }
 

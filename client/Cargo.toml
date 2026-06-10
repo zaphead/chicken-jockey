@@ -2,6 +2,18 @@
 name = "client"
 version = "0.1.0"
 edition.workspace = true
+default-run = "client"
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "client"
+path = "src/main.rs"
+
+[[bin]]
+name = "client-diagnose"
+path = "src/bin/diagnose.rs"
 
 [dependencies]
 engine-core = { path = "../crates/engine-core" }

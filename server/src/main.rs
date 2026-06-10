@@ -3,7 +3,7 @@ mod systems;
 use std::thread;
 use std::time::{Duration, Instant};
 
-use engine_assets::{blocks_asset_path, AssetServer};
+use engine_assets::{blocks_asset_path, load_block_registry, AssetServer};
 use engine_core::{App, Time};
 use engine_net::NetServer;
 use engine_world::{SparseVoxelOctree, WorldMutationQueue};
@@ -26,9 +26,12 @@ fn main() {
     app.insert_resource(WorldInitialized::default());
     app.insert_resource(TerrainGeneration::default());
 
+    let blocks_path = blocks_asset_path(env!("CARGO_MANIFEST_DIR"));
+    let registry = load_block_registry(&blocks_path);
     let mut assets = AssetServer::default();
-    assets.load_blocks(blocks_asset_path(env!("CARGO_MANIFEST_DIR")));
+    assets.insert_blocks(registry.clone());
     app.insert_resource(assets);
+    app.insert_resource(registry);
 
     register_server_systems(&mut app);
     register_server_schedule(&mut app);

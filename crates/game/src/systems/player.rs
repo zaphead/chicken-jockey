@@ -12,7 +12,7 @@ use crate::systems::physics::collision::collides_aabb;
 const WALK_SPEED: f32 = 6.0;
 const JUMP_SPEED: f32 = 8.5;
 const GRAVITY: f32 = 24.0;
-const MOUSE_SENSITIVITY: f32 = 0.002;
+const MOUSE_SENSITIVITY: f32 = 0.0012;
 
 pub fn player_look_system(ctx: &mut SystemContext<'_>) {
     let mounted: HashSet<Entity> = mounted_players(ctx);
@@ -31,7 +31,7 @@ pub fn player_look_system(ctx: &mut SystemContext<'_>) {
             continue;
         };
         if let Ok(mut transform) = ctx.world.get::<&mut Transform>(entity) {
-            transform.yaw += input.look_delta.x * MOUSE_SENSITIVITY;
+            transform.yaw -= input.look_delta.x * MOUSE_SENSITIVITY;
             transform.pitch = (transform.pitch - input.look_delta.y * MOUSE_SENSITIVITY)
                 .clamp(-1.5, 1.5);
         }

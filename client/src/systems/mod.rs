@@ -11,7 +11,7 @@ pub use extract::{
 };
 pub use input::sync_local_input_system;
 pub use net::client_net_system;
-pub use present::present_frame_system;
+pub use present::{present_frame_system, ClientRenderer};
 
 pub fn register_client_schedule(app: &mut engine_core::App) {
     use engine_core::Stage;

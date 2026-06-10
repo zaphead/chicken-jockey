@@ -13,7 +13,7 @@ source "$HOME/.cargo/env" 2>/dev/null || true
 cargo build -p client -q
 
 : >"$LOG"
-RUST_LOG=info cargo run -p client >>"$LOG" 2>&1 &
+RUST_LOG=info cargo run -p client --bin client >>"$LOG" 2>&1 &
 PID=$!
 
 cleanup() {

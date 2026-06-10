@@ -71,4 +71,11 @@ pub fn spawn_net_player(ctx: &mut SystemContext<'_>, player_id: u32) {
             half_extents: Vec3::new(0.35, 0.9, 0.35),
         },
     ));
+
+    if ctx.resources.get::<NetworkClient>().is_none() && player_id == 0 {
+        if let Some(local) = ctx.resources.get_mut::<LocalPlayerId>() {
+            local.id = Some(0);
+            local.spawned = true;
+        }
+    }
 }

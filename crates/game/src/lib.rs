@@ -9,7 +9,7 @@ pub mod systems;
 
 pub use components::{TerrainGeneration, *};
 pub use events::{BlockChangeIntent, PlayerStateChanged};
-pub use input::{GameplayInput, LocalPlayerId, PlayerInputs};
+pub use input::{local_player_entity, GameplayInput, LocalPlayerId, PlayerInputs};
 pub use mode::{AuthoritativeServer, NetworkClient};
 pub use plugin::{
     register_authoritative_block_system, register_client_systems, register_game_systems,
