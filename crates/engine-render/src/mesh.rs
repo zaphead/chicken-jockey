@@ -1,12 +1,13 @@
 use bytemuck::{Pod, Zeroable};
-use glam::{IVec3, Vec3};
+use engine_assets::{face_from_normal, CubeFace, UvRect};
+use glam::Vec3;
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Pod, Zeroable)]
 pub struct MeshVertex {
     pub position: [f32; 3],
     pub normal: [f32; 3],
-    pub color: [f32; 3],
+    pub uv: [f32; 2],
 }
 
 #[derive(Debug, Default, Clone)]
@@ -15,63 +16,99 @@ pub struct SolidMesh {
     pub indices: Vec<u32>,
 }
 
-pub fn cube_mesh(origin: IVec3, size: f32, color: [f32; 3]) -> SolidMesh {
-    let o = origin.as_vec3();
-    let s = size;
-    let min = o;
-    let max = o + Vec3::splat(s);
-    let mut mesh = SolidMesh::default();
+pub fn face_uvs(face: CubeFace, uv: UvRect) -> [[f32; 2]; 4] {
+    let [u0, v0] = uv.min;
+    let [u1, v1] = uv.max;
+    match face {
+        CubeFace::Right => [
+            [u0, v1],
+            [u0, v0],
+            [u1, v0],
+            [u1, v1],
+        ],
+        CubeFace::Left => [
+            [u0, v1],
+            [u1, v1],
+            [u1, v0],
+            [u0, v0],
+        ],
+        CubeFace::Front | CubeFace::Back | CubeFace::Top => [
+            [u0, v1],
+            [u1, v1],
+            [u1, v0],
+            [u0, v0],
+        ],
+        CubeFace::Bottom => [
+            [u1, v1],
+            [u1, v0],
+            [u0, v0],
+            [u0, v1],
+        ],
+    }
+}
 
-    let faces = [
-        ([1.0, 0.0, 0.0], [
-            [max.x, min.y, min.z],
-            [max.x, max.y, min.z],
-            [max.x, max.y, max.z],
-            [max.x, min.y, max.z],
-        ]),
-        ([-1.0, 0.0, 0.0], [
-            [min.x, min.y, max.z],
-            [min.x, max.y, max.z],
-            [min.x, max.y, min.z],
-            [min.x, min.y, min.z],
-        ]),
-        ([0.0, 1.0, 0.0], [
-            [min.x, max.y, min.z],
-            [max.x, max.y, min.z],
-            [max.x, max.y, max.z],
-            [min.x, max.y, max.z],
-        ]),
-        ([0.0, -1.0, 0.0], [
-            [min.x, min.y, max.z],
-            [max.x, min.y, max.z],
-            [max.x, min.y, min.z],
-            [min.x, min.y, min.z],
-        ]),
-        ([0.0, 0.0, 1.0], [
-            [min.x, min.y, max.z],
-            [min.x, max.y, max.z],
-            [max.x, max.y, max.z],
-            [max.x, min.y, max.z],
-        ]),
-        ([0.0, 0.0, -1.0], [
-            [max.x, min.y, min.z],
-            [max.x, max.y, min.z],
-            [min.x, max.y, min.z],
-            [min.x, min.y, min.z],
-        ]),
-    ];
+pub fn face_corners(origin: Vec3, normal: [f32; 3]) -> [Vec3; 4] {
+    let [nx, ny, nz] = normal;
 
-    for (normal, corners) in faces {
-        let base = mesh.vertices.len() as u32;
-        for corner in corners {
-            mesh.vertices.push(MeshVertex {
-                position: corner,
-                normal,
-                color,
-            });
-        }
-        mesh.indices.extend_from_slice(&[base, base + 1, base + 2, base, base + 2, base + 3]);
+    if nx > 0.0 {
+        [
+            origin + Vec3::new(1.0, 0.0, 0.0),
+            origin + Vec3::new(1.0, 1.0, 0.0),
+            origin + Vec3::new(1.0, 1.0, 1.0),
+            origin + Vec3::new(1.0, 0.0, 1.0),
+        ]
+    } else if nx < 0.0 {
+        [
+            origin + Vec3::new(0.0, 0.0, 1.0),
+            origin + Vec3::new(0.0, 1.0, 1.0),
+            origin + Vec3::new(0.0, 1.0, 0.0),
+            origin + Vec3::new(0.0, 0.0, 0.0),
+        ]
+    } else if ny > 0.0 {
+        [
+            origin + Vec3::new(0.0, 1.0, 0.0),
+            origin + Vec3::new(1.0, 1.0, 0.0),
+            origin + Vec3::new(1.0, 1.0, 1.0),
+            origin + Vec3::new(0.0, 1.0, 1.0),
+        ]
+    } else if ny < 0.0 {
+        [
+            origin + Vec3::new(0.0, 0.0, 1.0),
+            origin + Vec3::new(1.0, 0.0, 1.0),
+            origin + Vec3::new(1.0, 0.0, 0.0),
+            origin + Vec3::new(0.0, 0.0, 0.0),
+        ]
+    } else if nz > 0.0 {
+        [
+            origin + Vec3::new(0.0, 0.0, 1.0),
+            origin + Vec3::new(1.0, 0.0, 1.0),
+            origin + Vec3::new(1.0, 1.0, 1.0),
+            origin + Vec3::new(0.0, 1.0, 1.0),
+        ]
+    } else {
+        [
+            origin + Vec3::new(1.0, 0.0, 0.0),
+            origin + Vec3::new(1.0, 1.0, 0.0),
+            origin + Vec3::new(0.0, 1.0, 0.0),
+            origin + Vec3::new(0.0, 0.0, 0.0),
+        ]
+    }
+}
+
+pub fn append_face(mesh: &mut SolidMesh, origin: Vec3, normal: [f32; 3], uv: UvRect) {
+    let face = face_from_normal(normal);
+    let corners = face_corners(origin, normal);
+    let uvs = face_uvs(face, uv);
+    let base = mesh.vertices.len() as u32;
+
+    for (corner, tile_uv) in corners.iter().zip(uvs) {
+        mesh.vertices.push(MeshVertex {
+            position: corner.to_array(),
+            normal,
+            uv: tile_uv,
+        });
     }
 
-    mesh
+    mesh.indices
+        .extend_from_slice(&[base, base + 1, base + 2, base, base + 2, base + 3]);
 }

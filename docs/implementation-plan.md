@@ -4,7 +4,7 @@
 
 **Goal:** Build a playable rough prototype — a voxel world you can walk in, break/place blocks, find chickens, mount them, and ride around — on the architecture defined in [`design-doc.md`](./design-doc.md).
 
-**Authority:** [`design-doc.md`](./design-doc.md) defines *how* we build. This document defines *what* we build next and in what order.
+**Authority:** [`design-doc.md`](./design-doc.md) defines _how_ we build. This document defines _what_ we build next and in what order.
 
 ---
 
@@ -66,26 +66,26 @@ flowchart TB
 
 ## Phase tracker
 
-| Phase | Name | Status | Done when |
-| ----- | ---- | ------ | --------- |
-| 0 | Workspace bootstrap | Complete | `cargo build` succeeds; crate layout matches design doc §2 |
-| 1 | ECS core + schedule | Complete | Headless tick loop runs PreUpdate → Update → PostUpdate |
-| 2 | Client window + clear screen | Complete | Window opens, wgpu clears to a color, closes cleanly |
-| 3 | Voxel world (minimal SVO) | Complete | Flat test world queryable; mutations via `WorldMutationQueue` |
-| 4 | Block registry + data files | Complete | Blocks defined in JSON/TOML; loaded into `BlockRegistry` |
-| 5 | Voxel rendering (MVP) | Complete | Greedy-meshed chunks visible; camera moves through scene |
-| 6 | Input + player controller | Deferred | Local client is spectator-only; server player systems kept Z-up for future multiplayer |
-| 7 | Block interaction | Deferred | Not registered on local client until player controller returns |
-| 8 | Terrain generation | Complete | Flat grass plane on XY at z=0 |
-| 9 | Chickens + mounting | Deferred | Mob systems unwired; focus on world + spectator camera first |
-| 10 | Server binary (local) | Complete | Headless authoritative server; QUIC on `127.0.0.1:4242` |
-| 11 | Render hardening | Complete | Extract/render boundary, depth prepass, render-submit thread (surface on main), GPU compute mesh path, screen-space LOD + seam fix |
-| 12 | Networking (QUIC) | Complete | `quinn` transport, bincode protocol, QUIC datagrams for Input/Snapshots, authoritative blocks, client reconciliation |
-| 13 | ECS foundation hardening | Complete | Run conditions, `GameplayInput` in `game`, `Commands` deferral, no `engine-input` in `game` |
-| 14 | Game system refactor | Complete | Single input resolver, split spawn/plugin registration, shared collision, multiplayer mount lookup |
-| 15 | Binary wiring | Complete | PreUpdate/PostUpdate net+input systems; slim `client/main.rs` winit loop |
-| 16 | Real SVO + async assets | Complete | Pointer octree with aggregate tests; `AssetServer` + IO thread async block load |
-| 17 | Architecture debt closure | Complete | `RenderWorld` extract boundary; dead `RenderThread` removed; design-doc dependency graph enforced |
+| Phase | Name                         | Status   | Done when                                                                                                                          |
+| ----- | ---------------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| 0     | Workspace bootstrap          | Complete | `cargo build` succeeds; crate layout matches design doc §2                                                                         |
+| 1     | ECS core + schedule          | Complete | Headless tick loop runs PreUpdate → Update → PostUpdate                                                                            |
+| 2     | Client window + clear screen | Complete | Window opens, wgpu clears to a color, closes cleanly                                                                               |
+| 3     | Voxel world (minimal SVO)    | Complete | Flat test world queryable; mutations via `WorldMutationQueue`                                                                      |
+| 4     | Block registry + data files  | Complete | Blocks defined in JSON/TOML; loaded into `BlockRegistry`                                                                           |
+| 5     | Voxel rendering (MVP)        | Complete | Greedy-meshed chunks visible; camera moves through scene                                                                           |
+| 6     | Input + player controller    | Deferred | Local client is spectator-only; server player systems kept Z-up for future multiplayer                                             |
+| 7     | Block interaction            | Deferred | Not registered on local client until player controller returns                                                                     |
+| 8     | Terrain generation           | Complete | Flat grass plane on XY at z=0                                                                                                      |
+| 9     | Chickens + mounting          | Deferred | Mob systems unwired; focus on world + spectator camera first                                                                       |
+| 10    | Server binary (local)        | Complete | Headless authoritative server; QUIC on `127.0.0.1:4242`                                                                            |
+| 11    | Render hardening             | Complete | Extract/render boundary, depth prepass, render-submit thread (surface on main), GPU compute mesh path, screen-space LOD + seam fix |
+| 12    | Networking (QUIC)            | Complete | `quinn` transport, bincode protocol, QUIC datagrams for Input/Snapshots, authoritative blocks, client reconciliation               |
+| 13    | ECS foundation hardening     | Complete | Run conditions, `GameplayInput` in `game`, `Commands` deferral, no `engine-input` in `game`                                        |
+| 14    | Game system refactor         | Complete | Single input resolver, split spawn/plugin registration, shared collision, multiplayer mount lookup                                 |
+| 15    | Binary wiring                | Complete | PreUpdate/PostUpdate net+input systems; slim `client/main.rs` winit loop                                                           |
+| 16    | Real SVO + async assets      | Complete | Pointer octree with aggregate tests; `AssetServer` + IO thread async block load                                                    |
+| 17    | Architecture debt closure    | Complete | `RenderWorld` extract boundary; dead `RenderThread` removed; design-doc dependency graph enforced                                  |
 
 Update the **Status** column as work completes. Add dated notes under [Progress log](#progress-log).
 
@@ -270,12 +270,12 @@ Core game fantasy. All logic in `game` crate.
 
 **Components**
 
-| Component | Data |
-| --------- | ---- |
-| `Chicken` | wander state, speed |
-| `Mountable` | mount offset, rider slot |
-| `Rider` | reference to mount entity |
-| `Mounted` | reference to rider entity |
+| Component   | Data                      |
+| ----------- | ------------------------- |
+| `Chicken`   | wander state, speed       |
+| `Mountable` | mount offset, rider slot  |
+| `Rider`     | reference to mount entity |
+| `Mounted`   | reference to rider entity |
 
 **Systems**
 
@@ -363,6 +363,12 @@ Full client–server model per design doc §7:
 - **Phase 12:** `engine-net` QUIC (`quinn`) + bincode protocol; server broadcasts `BlockDeltas` and `EntitySnapshots`; client reconciles with prediction stub.
 - **Multiplayer:** `cargo run -p server` then `CJ_SERVER=127.0.0.1:4242 cargo run -p client`.
 
+### 2026-06-10 — Folder-based block textures + UV layouts
+
+- Per-block `assets/textures/blocks/{name}/albedo.png` (64×32 `cube_v1` cross-net); runtime pack into 256×256 GPU atlas.
+- `UvLayoutId` + `BlockMaterialMap` in `engine-assets`; mesher resolves face UVs by block id + normal.
+- Artist spec: `assets/textures/README.md`; template `layouts/cube_v1_template.png`; `cargo run -p engine-assets --bin generate-block-textures`.
+
 ### 2026-06-10 — Design-doc hardening (Phases 13–17)
 
 - **Phase 13:** Scheduler run conditions; `GameplayInput`/`PlayerInputs` in `game`; mount mutations via `Commands`; removed `SimulationMode` and `engine-input` dependency from `game`.
@@ -375,13 +381,13 @@ Full client–server model per design doc §7:
 
 ## Explicit MVP shortcuts (must be removed later)
 
-| Shortcut | Phase | Replaced in | Status |
-| -------- | ----- | ----------- | ------ |
-| CPU greedy meshing | 5 | 11 | Removed — GPU compute path + LOD meshing |
-| Sync asset load | 4 | 16 | Removed — `AssetServer` async IO |
-| Main-thread terrain gen | 8 | Later | Open |
-| Extract on main thread (no render thread) | 5 | 11 | Removed — render-submit worker thread |
-| In-process / dumb client networking | 10 | 12 | Removed — QUIC + datagrams |
+| Shortcut                                  | Phase | Replaced in | Status                                   |
+| ----------------------------------------- | ----- | ----------- | ---------------------------------------- |
+| CPU greedy meshing                        | 5     | 11          | Removed — GPU compute path + LOD meshing |
+| Sync asset load                           | 4     | 16          | Removed — `AssetServer` async IO         |
+| Main-thread terrain gen                   | 8     | Later       | Open                                     |
+| Extract on main thread (no render thread) | 5     | 11          | Removed — render-submit worker thread    |
+| In-process / dumb client networking       | 10    | 12          | Removed — QUIC + datagrams               |
 
 Do not let shortcuts leak into `game` or `engine-world` APIs. Isolate them inside `engine-render` or `client`/`server` wiring.
 

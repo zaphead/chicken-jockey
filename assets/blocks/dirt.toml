@@ -2,4 +2,4 @@ id = 2
 name = "dirt"
 solid = true
 opaque = true
-color = [0.45, 0.32, 0.18]
+layout = "cube_v1"

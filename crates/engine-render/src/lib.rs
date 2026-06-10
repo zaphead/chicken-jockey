@@ -9,10 +9,11 @@ mod world_mesh;
 
 pub use camera::Camera;
 pub use extract::{RenderExtractState, RenderSurfaceInfo, RenderWorld};
-pub use mesh::{cube_mesh, MeshVertex, SolidMesh};
+pub use mesh::{append_face, MeshVertex, SolidMesh};
 pub use renderer::Renderer;
 pub use world_mesh::{
-    ChunkMeshCache, RenderScene, extract_render_scene, mesh_chunk, MAX_CHUNK_REBUILDS_PER_FRAME,
+    extract_render_scene, mesh_chunk, ChunkMeshCache, RebuildBudget, RenderScene,
+    MAX_CHUNK_REBUILDS_PER_FRAME,
 };
 
 /// Max distance from the camera to build and retain chunk meshes (world units).

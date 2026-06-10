@@ -4,6 +4,8 @@ use wgpu::SurfaceError;
 use winit::dpi::PhysicalSize;
 use winit::window::Window;
 
+use engine_assets::TextureAtlas;
+
 use crate::mesh::SolidMesh;
 use crate::pipeline::{GpuMesh, RenderPipeline};
 use crate::world_mesh::RenderScene;
@@ -22,7 +24,7 @@ pub struct Renderer {
 
 impl Renderer {
     /// Synchronous renderer setup for use from `ApplicationHandler::resumed`.
-    pub fn new(window: Arc<Window>) -> Self {
+    pub fn new(window: Arc<Window>, atlas: &TextureAtlas) -> Self {
         let size = window.inner_size();
         let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
             backends: wgpu::Backends::all(),
@@ -73,7 +75,7 @@ impl Renderer {
         let (depth_texture, depth_view) =
             create_depth_texture(&device, config.width, config.height);
 
-        let pipeline = RenderPipeline::new(&device, surface_format);
+        let pipeline = RenderPipeline::new(&device, &queue, surface_format, atlas);
 
         Self {
             window,
@@ -157,6 +159,7 @@ impl Renderer {
 
             pass.set_pipeline(&self.pipeline.pipeline);
             pass.set_bind_group(0, &self.pipeline.camera_bind_group, &[]);
+            pass.set_bind_group(1, &self.pipeline.atlas_bind_group, &[]);
 
             for mesh in &self.gpu_meshes {
                 pass.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));

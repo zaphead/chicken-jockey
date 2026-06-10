@@ -1,5 +1,5 @@
-use engine_assets::BlockRegistry;
-use engine_render::{RenderExtractState, CHUNK_MESH_RENDER_DISTANCE};
+use engine_assets::{BlockMaterialMap, BlockRegistry};
+use engine_render::{RenderExtractState, RebuildBudget, CHUNK_MESH_RENDER_DISTANCE};
 use engine_world::{SparseVoxelOctree, CHUNK_SIZE};
 use game::{GRASS_PLANE_Z, WORLD_RADIUS};
 use glam::{IVec3, Vec3};
@@ -20,14 +20,15 @@ fn terrain_chunk_coords() -> impl Iterator<Item = IVec3> {
 }
 
 pub fn bootstrap_terrain_meshes(state: &mut RenderExtractState) {
-    if state.world_mesh_queued {
+    if state.terrain_bootstrapped {
         return;
     }
     state.mesh_cache = engine_render::ChunkMeshCache::default();
     for chunk in terrain_chunk_coords() {
         state.mesh_cache.mark_dirty(chunk);
     }
-    state.world_mesh_queued = true;
+    state.terrain_bootstrapped = true;
+    state.pending_full_rebuild = true;
 }
 
 pub fn enqueue_mesh_batch(state: &mut RenderExtractState) {
@@ -41,20 +42,25 @@ pub fn rebuild_chunk_meshes(
     state: &mut RenderExtractState,
     world: &SparseVoxelOctree,
     registry: &BlockRegistry,
+    materials: &BlockMaterialMap,
     camera_position: Vec3,
-    full_rebuild: bool,
+    budget: RebuildBudget,
 ) -> usize {
-    let top_faces_only = true;
-    if full_rebuild {
-        return state
-            .mesh_cache
-            .rebuild_all_dirty(world, registry, top_faces_only);
-    }
-    state.mesh_cache.rebuild_dirty_near(
+    state.mesh_cache.rebuild(
         world,
         registry,
+        materials,
         camera_position,
-        CHUNK_MESH_RENDER_DISTANCE,
-        top_faces_only,
+        budget,
+        true,
     )
+}
+
+pub fn rebuild_budget_for_extract(state: &mut RenderExtractState) -> RebuildBudget {
+    if state.pending_full_rebuild {
+        state.pending_full_rebuild = false;
+        RebuildBudget::all()
+    } else {
+        RebuildBudget::near(CHUNK_MESH_RENDER_DISTANCE)
+    }
 }

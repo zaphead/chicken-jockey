@@ -1,10 +1,12 @@
-use engine_assets::BlockRegistry;
+use std::sync::Arc;
+
+use engine_assets::{BlockRegistry, PackedBlockTextures};
 use engine_core::SystemContext;
 use engine_render::{Camera, RenderExtractState, RenderSurfaceInfo, RenderWorld};
 use engine_world::{BlockChanged, SparseVoxelOctree};
 use game::WorldInitialized;
 
-use crate::mesh_pipeline::{bootstrap_terrain_meshes, rebuild_chunk_meshes};
+use crate::mesh_pipeline::{bootstrap_terrain_meshes, rebuild_budget_for_extract, rebuild_chunk_meshes};
 use crate::systems::spectator::SpectatorCamera;
 
 pub fn sync_block_changes_system(ctx: &mut SystemContext<'_>) {
@@ -44,13 +46,22 @@ pub fn extract_render_world_system(ctx: &mut SystemContext<'_>) {
         .unwrap_or(16.0 / 9.0);
     let camera = extract_camera(ctx, aspect);
 
+    let Some(packed) = ctx.resources.get::<Arc<PackedBlockTextures>>().cloned() else {
+        return;
+    };
     let meshes = ctx
         .resources
         .with_triple::<SparseVoxelOctree, BlockRegistry, RenderExtractState, _>(|world, registry, state| {
-            if state.world_mesh_queued && state.mesh_cache.has_dirty_chunks() {
-                let _ = rebuild_chunk_meshes(state, world, registry, camera.position, true);
-            } else if state.mesh_cache.has_dirty_chunks() {
-                let _ = rebuild_chunk_meshes(state, world, registry, camera.position, false);
+            if state.mesh_cache.has_dirty_chunks() {
+                let budget = rebuild_budget_for_extract(state);
+                rebuild_chunk_meshes(
+                    state,
+                    world,
+                    registry,
+                    &packed.materials,
+                    camera.position,
+                    budget,
+                );
             }
             state.mesh_cache.all_meshes()
         })

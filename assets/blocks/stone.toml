@@ -2,4 +2,4 @@ id = 1
 name = "stone"
 solid = true
 opaque = true
-color = [0.55, 0.55, 0.58]
+layout = "cube_v1"

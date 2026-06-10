@@ -13,7 +13,9 @@ pub struct RenderWorld {
 pub struct RenderExtractState {
     pub mesh_cache: ChunkMeshCache,
     pub world_mesh_queue: Vec<glam::IVec3>,
-    pub world_mesh_queued: bool,
+    pub terrain_bootstrapped: bool,
+    /// Cleared after the first full rebuild following terrain bootstrap.
+    pub pending_full_rebuild: bool,
 }
 
 #[derive(Debug, Clone, Copy, Default)]

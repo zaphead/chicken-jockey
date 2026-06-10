@@ -9,3 +9,8 @@ engine-world = { path = "../engine-world" }
 serde = { workspace = true }
 toml = { workspace = true }
 crossbeam-channel = { workspace = true }
+image = { version = "0.25", default-features = false, features = ["png"] }
+
+[[bin]]
+name = "generate-block-textures"
+path = "src/bin/generate_block_textures.rs"

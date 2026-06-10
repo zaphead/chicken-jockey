@@ -5,7 +5,8 @@ use glam::Vec3;
 
 use crate::systems::input::PendingWinitInput;
 
-const FLY_SPEED: f32 = 12.0;
+const FLY_SPEED: f32 = 4.0;
+const SPRINT_MULTIPLIER: f32 = 2.0;
 const MOUSE_SENSITIVITY: f32 = 0.0012;
 
 #[derive(Debug, Clone, Copy)]
@@ -31,7 +32,7 @@ impl Default for SpectatorCamera {
 
 pub fn spectator_camera_system(ctx: &mut SystemContext<'_>) {
     let delta = ctx.resources.get::<engine_core::Time>().map(|t| t.delta).unwrap_or(0.0);
-    let (look_delta, move_axis, vertical_axis) = ctx
+    let (look_delta, move_axis, vertical_axis, sprint) = ctx
         .resources
         .get::<PendingWinitInput>()
         .map(|pending| {
@@ -39,6 +40,7 @@ pub fn spectator_camera_system(ctx: &mut SystemContext<'_>) {
                 pending.0.look_delta,
                 pending.0.move_axis,
                 pending.0.vertical_axis(),
+                pending.0.sprint,
             )
         })
         .unwrap_or_default();
@@ -71,6 +73,7 @@ pub fn spectator_camera_system(ctx: &mut SystemContext<'_>) {
         + right * move_axis.x
         + UP * vertical_axis;
     if wish.length_squared() > 0.0 {
-        camera.position += wish.normalize() * FLY_SPEED * delta;
+        let speed = FLY_SPEED * if sprint { SPRINT_MULTIPLIER } else { 1.0 };
+        camera.position += wish.normalize() * speed * delta;
     }
 }

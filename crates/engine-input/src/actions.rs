@@ -6,6 +6,7 @@ pub struct InputState {
     pub look_delta: Vec2,
     pub ascend: bool,
     pub descend: bool,
+    pub sprint: bool,
     pub jump: bool,
     pub interact: bool,
     pub break_block: bool,

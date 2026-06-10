@@ -2,4 +2,4 @@ id = 3
 name = "grass"
 solid = true
 opaque = true
-color = [0.35, 0.72, 0.28]
+layout = "cube_v1"

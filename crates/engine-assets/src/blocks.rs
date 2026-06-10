@@ -5,19 +5,34 @@ use std::path::Path;
 use engine_world::BlockId;
 use serde::Deserialize;
 
+use crate::layouts::UvLayoutId;
+
 #[derive(Debug, Clone, Deserialize)]
 pub struct BlockDefinition {
     pub id: BlockId,
     pub name: String,
     pub solid: bool,
     pub opaque: bool,
-    pub color: [f32; 3],
+    /// UV layout type (default `cube_v1`).
+    #[serde(default)]
+    pub layout: UvLayoutId,
+    /// Texture folder under `assets/textures/` (default `blocks/{name}`).
+    #[serde(default)]
+    pub texture: Option<String>,
 }
 
 #[derive(Debug, Default, Clone)]
 pub struct BlockRegistry {
     by_id: HashMap<BlockId, BlockDefinition>,
     by_name: HashMap<String, BlockId>,
+}
+
+impl BlockDefinition {
+    pub fn material_path(&self) -> String {
+        self.texture
+            .clone()
+            .unwrap_or_else(|| format!("blocks/{}", self.name))
+    }
 }
 
 impl BlockRegistry {
@@ -38,10 +53,8 @@ impl BlockRegistry {
         self.get(id).map(|block| block.solid).unwrap_or(false)
     }
 
-    pub fn color(&self, id: BlockId) -> [f32; 3] {
-        self.get(id)
-            .map(|block| block.color)
-            .unwrap_or([0.0, 0.0, 0.0])
+    pub fn definitions(&self) -> impl Iterator<Item = &BlockDefinition> {
+        self.by_id.values()
     }
 }
 

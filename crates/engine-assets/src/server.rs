@@ -121,9 +121,17 @@ impl AssetServer {
     }
 }
 
+pub fn assets_dir(manifest_dir: &str) -> PathBuf {
+    let start = Path::new(manifest_dir);
+    for ancestor in start.ancestors() {
+        let candidate = ancestor.join("assets");
+        if candidate.is_dir() {
+            return candidate;
+        }
+    }
+    start.join("..").join("assets")
+}
+
 pub fn blocks_asset_path(manifest_dir: &str) -> PathBuf {
-    PathBuf::from(manifest_dir)
-        .join("..")
-        .join("assets")
-        .join("blocks")
+    assets_dir(manifest_dir).join("blocks")
 }

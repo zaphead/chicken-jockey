@@ -2,23 +2,19 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use engine_assets::{blocks_asset_path, load_block_registry, AssetServer};
+use engine_assets::PackedBlockTextures;
 use engine_core::{App, Time};
 use engine_input::{apply_mouse_motion, apply_winit_event, InputState};
 use engine_net::NetClient;
-use engine_render::{RenderExtractState, RenderSurfaceInfo, RenderWorld, Renderer};
-use engine_world::{SparseVoxelOctree, WorldMutationQueue};
-use game::{
-    register_local_client_systems, register_network_client_systems, LocalPlayerId, NetworkClient,
-    PlayerInputs, TerrainGeneration, WorldInitialized,
-};
+use engine_render::{RenderSurfaceInfo, RenderWorld, Renderer};
+use game::{register_local_client_systems, register_network_client_systems, NetworkClient};
 
-use client::diagnostics::ClientDiagnostics;
+use client::bootstrap::{bootstrap_client_resources, bootstrap_client_shell};
 use client::systems::input::PendingWinitInput;
+use client::diagnostics::ClientDiagnostics;
 use client::systems::net::ClientNet;
 use client::systems::present::ClientRenderer;
 use client::systems::register_client_schedule;
-use client::systems::spectator::SpectatorCamera;
 use winit::application::ApplicationHandler;
 use winit::dpi::{PhysicalPosition, PhysicalSize};
 use winit::event::{DeviceEvent, ElementState, KeyEvent, MouseButton, WindowEvent};
@@ -43,24 +39,8 @@ impl ClientApp {
     fn new() -> Self {
         let mut ecs = App::new();
         ecs.insert_resource(Time::new(1.0 / 60.0));
-        ecs.insert_resource(PlayerInputs::default());
-        ecs.insert_resource(PendingWinitInput(InputState::default()));
-        ecs.insert_resource(SparseVoxelOctree::default());
-        ecs.insert_resource(WorldMutationQueue::default());
-        ecs.insert_resource(WorldInitialized::default());
-        ecs.insert_resource(TerrainGeneration::default());
-        ecs.insert_resource(LocalPlayerId::default());
-        ecs.insert_resource(RenderExtractState::default());
-        ecs.insert_resource(RenderWorld::default());
-        ecs.insert_resource(RenderSurfaceInfo::default());
-        ecs.insert_resource(SpectatorCamera::default());
-
-        let blocks_path = blocks_asset_path(env!("CARGO_MANIFEST_DIR"));
-        let registry = load_block_registry(&blocks_path);
-        let mut assets = AssetServer::default();
-        assets.insert_blocks(registry.clone());
-        ecs.insert_resource(assets);
-        ecs.insert_resource(registry);
+        bootstrap_client_shell(&mut ecs);
+        bootstrap_client_resources(&mut ecs, env!("CARGO_MANIFEST_DIR"));
 
         if let Some(addr) = std::env::var("CJ_SERVER")
             .ok()
@@ -132,7 +112,11 @@ impl ClientApp {
             return;
         };
         log::info!("creating renderer at {}x{}", size.width, size.height);
-        let renderer = Renderer::new(window);
+        let Some(packed) = self.ecs.resource::<Arc<PackedBlockTextures>>().cloned() else {
+            log::error!("renderer init failed: PackedBlockTextures resource missing");
+            return;
+        };
+        let renderer = Renderer::new(window, &packed.atlas);
         self.ecs.insert_resource(ClientRenderer(renderer));
         if let Some(info) = self.ecs.resource_mut::<RenderSurfaceInfo>() {
             info.aspect = size.width as f32 / size.height.max(1) as f32;
