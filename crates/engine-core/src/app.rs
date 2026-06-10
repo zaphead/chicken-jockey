@@ -105,6 +105,16 @@ impl App {
         self.events.drain()
     }
 
+    pub fn system_context<R>(&mut self, f: impl FnOnce(&mut SystemContext<'_>) -> R) -> R {
+        let mut context = SystemContext {
+            world: &mut self.world,
+            resources: &mut self.resources,
+            commands: &mut self.commands,
+            events: &mut self.events,
+        };
+        f(&mut context)
+    }
+
     pub fn run_headless(&mut self, fixed_delta: f32, max_ticks: u64) {
         if self.resource::<Time>().is_none() {
             self.insert_resource(Time::new(fixed_delta));

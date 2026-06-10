@@ -1,17 +1,24 @@
+mod net;
+
+use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use engine_assets::load_block_registry;
 use engine_core::{App, Time};
 use engine_input::{apply_winit_event, InputState};
-use engine_render::{cube_mesh, extract_render_scene, Camera, ChunkMeshCache, Renderer};
+use engine_net::NetClient;
+use engine_render::{
+    cube_mesh, extract_render_scene, Camera, ChunkMeshCache, Renderer, CHUNK_MESH_LOD_DISTANCE,
+};
 use engine_world::{BlockChanged, SparseVoxelOctree, WorldMutationQueue};
 use game::{
-    register_game_systems, Player, Renderable, TerrainGeneration, Transform, WorldInitialized,
-    WORLD_RADIUS,
+    register_client_systems, LocalPlayer, Player, Renderable, SimulationMode, TerrainGeneration,
+    Transform, WorldInitialized, WORLD_RADIUS,
 };
 use glam::{IVec3, Vec3};
+use net::client_net_pre_update;
 use winit::application::ApplicationHandler;
 use winit::dpi::{PhysicalPosition, PhysicalSize};
 use winit::event::{DeviceEvent, ElementState, MouseButton, WindowEvent};
@@ -24,11 +31,12 @@ use winit::platform::macos::{ActivationPolicy, EventLoopBuilderExtMacOS};
 struct ClientApp {
     window: Option<Arc<Window>>,
     renderer: Option<Renderer>,
+    net: Option<NetClient>,
     ecs: App,
     input: InputState,
     mesh_cache: ChunkMeshCache,
     last_frame: Instant,
-    world_meshed: bool,
+    world_mesh_queue: Vec<IVec3>,
     window_centered: bool,
 }
 
@@ -41,6 +49,20 @@ impl ClientApp {
         ecs.insert_resource(WorldMutationQueue::default());
         ecs.insert_resource(WorldInitialized::default());
         ecs.insert_resource(TerrainGeneration::default());
+        ecs.insert_resource(LocalPlayer::default());
+
+        let net = std::env::var("CJ_SERVER")
+            .ok()
+            .and_then(|value| value.parse::<SocketAddr>().ok())
+            .map(|addr| {
+                log::info!("connecting to server at {addr}");
+                ecs.insert_resource(SimulationMode::NetworkClient);
+                NetClient::connect(addr)
+            });
+
+        if net.is_none() {
+            ecs.insert_resource(SimulationMode::Local);
+        }
 
         let assets = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("..")
@@ -48,21 +70,22 @@ impl ClientApp {
             .join("blocks");
         ecs.insert_resource(load_block_registry(&assets));
 
-        register_game_systems(&mut ecs);
+        register_client_systems(&mut ecs);
 
         Self {
             window: None,
             renderer: None,
+            net,
             ecs,
             input: InputState::default(),
             mesh_cache: ChunkMeshCache::default(),
             last_frame: Instant::now(),
-            world_meshed: false,
+            world_mesh_queue: Vec::new(),
             window_centered: false,
         }
     }
 
-    fn tick(&mut self) {
+    fn tick(&mut self, event_loop: &ActiveEventLoop) {
         let now = Instant::now();
         let delta = (now - self.last_frame).as_secs_f32().min(0.05);
         self.last_frame = now;
@@ -74,6 +97,10 @@ impl ClientApp {
             *input = self.input.clone();
         }
 
+        if let Some(net) = &self.net {
+            client_net_pre_update(&mut self.ecs, net, &self.input);
+        }
+
         self.ecs.tick_with_render();
 
         for change in self.ecs.drain_events::<BlockChanged>() {
@@ -81,29 +108,40 @@ impl ClientApp {
         }
         self.ecs.end_frame();
 
-        if !self.world_meshed
+        if self.world_mesh_queue.is_empty()
             && self
                 .ecs
                 .resource::<WorldInitialized>()
                 .map(|flag| flag.0)
                 .unwrap_or(false)
         {
-            self.mark_world_dirty();
-            self.world_meshed = true;
+            self.queue_world_mesh_chunks();
         }
+        self.enqueue_world_mesh_batch();
 
-        self.rebuild_and_render();
+        self.extract_and_render();
         self.input.clear_frame_state();
+
+        event_loop.set_control_flow(winit::event_loop::ControlFlow::WaitUntil(
+            self.last_frame + Duration::from_secs_f32(1.0 / 60.0),
+        ));
     }
 
-    fn mark_world_dirty(&mut self) {
+    fn queue_world_mesh_chunks(&mut self) {
         let chunk_radius = WORLD_RADIUS / engine_world::CHUNK_SIZE + 1;
         for cx in -chunk_radius..chunk_radius {
             for cz in -chunk_radius..chunk_radius {
                 for cy in 0..2 {
-                    self.mesh_cache.mark_dirty(IVec3::new(cx, cy, cz));
+                    self.world_mesh_queue.push(IVec3::new(cx, cy, cz));
                 }
             }
+        }
+    }
+
+    fn enqueue_world_mesh_batch(&mut self) {
+        const BATCH: usize = 16;
+        for chunk in self.world_mesh_queue.drain(..self.world_mesh_queue.len().min(BATCH)) {
+            self.mesh_cache.mark_dirty(chunk);
         }
     }
 
@@ -119,7 +157,7 @@ impl ClientApp {
         log::info!("renderer ready");
     }
 
-    fn rebuild_and_render(&mut self) {
+    fn extract_and_render(&mut self) {
         let Some(renderer) = self.renderer.as_mut() else {
             return;
         };
@@ -130,7 +168,13 @@ impl ClientApp {
             .resource::<engine_assets::BlockRegistry>()
             .expect("registry");
 
-        self.mesh_cache.rebuild_dirty(world, registry);
+        let camera = player_camera(&self.ecs, renderer.aspect());
+        let _rebuilt = self.mesh_cache.rebuild_dirty_near(
+            world,
+            registry,
+            camera.position,
+            CHUNK_MESH_LOD_DISTANCE,
+        );
         let mut meshes = self.mesh_cache.all_meshes();
 
         for (_, (transform, renderable)) in self.ecs.world.query::<(&Transform, &Renderable)>().iter()
@@ -142,8 +186,6 @@ impl ClientApp {
         }
 
         renderer.upload_meshes(&meshes);
-
-        let camera = player_camera(&self.ecs, renderer.aspect());
         let scene = extract_render_scene(camera, meshes, Vec::new());
         if let Err(error) = renderer.render(&scene) {
             log::warn!("render error: {error:?}");
@@ -172,7 +214,6 @@ impl ApplicationHandler for ClientApp {
 
         window.focus_window();
         window.request_redraw();
-        event_loop.set_control_flow(winit::event_loop::ControlFlow::Poll);
     }
 
     fn window_event(
@@ -200,7 +241,7 @@ impl ApplicationHandler for ClientApp {
             }
             WindowEvent::RedrawRequested => {
                 if self.renderer.is_some() {
-                    self.tick();
+                    self.tick(event_loop);
                 }
             }
             WindowEvent::Occluded(false) => {
@@ -239,7 +280,7 @@ impl ApplicationHandler for ClientApp {
         }
     }
 
-    fn about_to_wait(&mut self, _event_loop: &ActiveEventLoop) {
+    fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
         let size = self.window.as_ref().map(|window| window.inner_size());
         if self.renderer.is_none() {
             if let Some(size) = size {
@@ -249,6 +290,9 @@ impl ApplicationHandler for ClientApp {
         if let Some(window) = &self.window {
             window.request_redraw();
         }
+        event_loop.set_control_flow(winit::event_loop::ControlFlow::WaitUntil(
+            Instant::now() + Duration::from_secs_f32(1.0 / 60.0),
+        ));
     }
 }
 

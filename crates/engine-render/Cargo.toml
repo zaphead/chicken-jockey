@@ -12,3 +12,5 @@ winit = { workspace = true }
 glam = { workspace = true }
 bytemuck = { workspace = true }
 pollster = { workspace = true }
+rayon = { workspace = true }
+log = { workspace = true }

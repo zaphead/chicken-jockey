@@ -3,16 +3,18 @@ use engine_core::SystemContext;
 use engine_input::InputState;
 use engine_world::{BlockPos, SparseVoxelOctree, WorldMutationQueue};
 use glam::Vec3;
+use hecs::Entity;
 
-use crate::components::{Mounted, Player, Transform};
+use crate::components::{Mounted, NetPlayerId, Player, Transform};
+use crate::simulation::{LocalPlayer, RemoteInputs, SimulationMode};
 
 const REACH: f32 = 6.0;
 
 pub fn block_interaction_system(ctx: &mut SystemContext<'_>) {
-    let Some(input) = ctx.resources.get::<InputState>().cloned() else {
-        return;
-    };
-    if !input.break_block && !input.place_block {
+    if matches!(
+        ctx.resources.get::<SimulationMode>(),
+        Some(SimulationMode::NetworkClient)
+    ) {
         return;
     }
 
@@ -26,41 +28,73 @@ pub fn block_interaction_system(ctx: &mut SystemContext<'_>) {
         return;
     };
 
-    let mut player_query = ctx.world.query::<(&Player, &Transform)>();
-    let Some((player_entity, transform)) = player_query
+    let players: Vec<(Entity, Transform, Option<u32>)> = ctx
+        .world
+        .query::<(&Player, &Transform, Option<&NetPlayerId>)>()
         .iter()
-        .next()
-        .map(|(entity, (_, transform))| (entity, *transform))
-    else {
-        return;
-    };
+        .map(|(entity, (_, transform, net_id))| {
+            (entity, *transform, net_id.map(|id| id.0))
+        })
+        .collect();
 
-    if ctx.world.get::<&Mounted>(player_entity).is_ok() {
-        return;
+    for (player_entity, transform, net_id) in players {
+        if ctx.world.get::<&Mounted>(player_entity).is_ok() {
+            continue;
+        }
+
+        let Some(input) = resolve_player_input(ctx, net_id) else {
+            continue;
+        };
+        if !input.break_block && !input.place_block {
+            continue;
+        }
+
+        let origin = transform.position + Vec3::new(0.0, 1.5, 0.0);
+        let direction = forward(&transform);
+
+        let Some(hit) = raycast_voxel(ctx, origin, direction, REACH) else {
+            continue;
+        };
+
+        let place_pos = BlockPos::new(
+            hit.block_pos.0.x + hit.normal.x,
+            hit.block_pos.0.y + hit.normal.y,
+            hit.block_pos.0.z + hit.normal.z,
+        );
+        let can_place = input.place_block && !occupies_player(transform.position, place_pos);
+
+        let Some(queue) = ctx.resources.get_mut::<WorldMutationQueue>() else {
+            return;
+        };
+
+        if input.break_block {
+            queue.set_block(hit.block_pos, air);
+        } else if can_place {
+            queue.set_block(place_pos, stone);
+        }
     }
+}
 
-    let origin = transform.position + Vec3::new(0.0, 1.5, 0.0);
-    let direction = forward(&transform);
-
-    let Some(hit) = raycast_voxel(ctx, origin, direction, REACH) else {
-        return;
-    };
-
-    let place_pos = BlockPos::new(
-        hit.block_pos.0.x + hit.normal.x,
-        hit.block_pos.0.y + hit.normal.y,
-        hit.block_pos.0.z + hit.normal.z,
-    );
-    let can_place = input.place_block && !occupies_player(ctx, transform.position, place_pos);
-
-    let Some(queue) = ctx.resources.get_mut::<WorldMutationQueue>() else {
-        return;
-    };
-
-    if input.break_block {
-        queue.set_block(hit.block_pos, air);
-    } else if can_place {
-        queue.set_block(place_pos, stone);
+fn resolve_player_input(ctx: &SystemContext<'_>, net_id: Option<u32>) -> Option<InputState> {
+    match ctx
+        .resources
+        .get::<SimulationMode>()
+        .copied()
+        .unwrap_or(SimulationMode::Local)
+    {
+        SimulationMode::Local => ctx.resources.get::<InputState>().cloned(),
+        SimulationMode::AuthoritativeServer => {
+            let id = net_id?;
+            ctx.resources.get::<RemoteInputs>()?.get(id)
+        }
+        SimulationMode::NetworkClient => {
+            let local = ctx.resources.get::<LocalPlayer>()?;
+            if net_id == local.id {
+                ctx.resources.get::<InputState>().cloned()
+            } else {
+                None
+            }
+        }
     }
 }
 
@@ -134,6 +168,6 @@ fn raycast_voxel(
     None
 }
 
-fn occupies_player(_ctx: &SystemContext<'_>, player_position: Vec3, position: BlockPos) -> bool {
+fn occupies_player(player_position: Vec3, position: BlockPos) -> bool {
     player_position.floor().as_ivec3() == position.0
 }

@@ -76,9 +76,9 @@ flowchart TB
 | 7 | Block interaction | Complete | Break/place voxels through mutation queue |
 | 8 | Terrain generation | Complete | Procedural heightmap fills a playable area at startup |
 | 9 | Chickens + mounting | Complete | Spawn, wander, mount/dismount, ride movement |
-| 10 | Server binary (local) | Partial | Headless server runs same `game` systems; networking not wired |
-| 11 | Render hardening | Not started | Extract phase, render thread split, GPU mesh gen (design doc §5) |
-| 12 | Networking (QUIC) | Not started | Authoritative server; client prediction stub |
+| 10 | Server binary (local) | Complete | Headless authoritative server; QUIC on `127.0.0.1:4242` |
+| 11 | Render hardening | Partial | Parallel chunk meshing (rayon), distance LOD, extract snapshot; GPU compute + render thread deferred (macOS surface constraint) |
+| 12 | Networking (QUIC) | Complete | `quinn` transport, bincode protocol, authoritative blocks, client prediction stub |
 
 Update the **Status** column as work completes. Add dated notes under [Progress log](#progress-log).
 
@@ -348,6 +348,13 @@ Full client–server model per design doc §7:
 - Full Cargo workspace scaffolded per design doc §2.
 - ECS scheduler, voxel world, block registry, CPU chunk meshing, wgpu client, and shared `game` systems through chicken mounting.
 - Run with `cargo run -p client` (click to capture mouse; WASD, Space, E, mouse look, LMB/RMB blocks).
+
+### 2026-06-10 — Phases 10–12 implemented
+
+- **Phase 10:** `server` runs persistent 60 Hz tick loop with authoritative `game` systems.
+- **Phase 11:** Rayon-parallel chunk mesh rebuild, camera-distance LOD culling, `extract_render_scene` snapshot before draw. Dedicated render thread + GPU compute meshing remain future work (macOS requires main-thread surface).
+- **Phase 12:** `engine-net` QUIC (`quinn`) + bincode protocol; server broadcasts `BlockDeltas` and `EntitySnapshots`; client reconciles with prediction stub.
+- **Multiplayer:** `cargo run -p server` then `CJ_SERVER=127.0.0.1:4242 cargo run -p client`.
 
 ---
 

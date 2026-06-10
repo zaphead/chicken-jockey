@@ -8,6 +8,7 @@ engine-core = { path = "../engine-core" }
 engine-world = { path = "../engine-world" }
 engine-assets = { path = "../engine-assets" }
 engine-input = { path = "../engine-input" }
+
 glam = { workspace = true }
 hecs = { workspace = true }
 rand = { workspace = true }

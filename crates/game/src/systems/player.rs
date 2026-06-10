@@ -7,7 +7,8 @@ use engine_world::{BlockPos, SparseVoxelOctree};
 use glam::Vec3;
 use hecs::Entity;
 
-use crate::components::{Collider, Mounted, Player, Transform, Velocity};
+use crate::components::{Collider, Mounted, NetPlayerId, Player, Transform, Velocity};
+use crate::simulation::{LocalPlayer, RemoteInputs, SimulationMode};
 
 const WALK_SPEED: f32 = 6.0;
 const JUMP_SPEED: f32 = 8.5;
@@ -15,10 +16,6 @@ const GRAVITY: f32 = 24.0;
 const MOUSE_SENSITIVITY: f32 = 0.002;
 
 pub fn player_look_system(ctx: &mut SystemContext<'_>) {
-    let Some(input) = ctx.resources.get::<InputState>().cloned() else {
-        return;
-    };
-
     let mounted: HashSet<Entity> = ctx
         .world
         .query::<(&Player, &Mounted)>()
@@ -26,21 +23,29 @@ pub fn player_look_system(ctx: &mut SystemContext<'_>) {
         .map(|(entity, _)| entity)
         .collect();
 
-    for (entity, (_, transform)) in ctx.world.query_mut::<(&Player, &mut Transform)>() {
+    let players: Vec<(Entity, Option<u32>)> = ctx
+        .world
+        .query::<(&Player, Option<&NetPlayerId>)>()
+        .iter()
+        .map(|(entity, (_, net_id))| (entity, net_id.map(|id| id.0)))
+        .collect();
+
+    for (entity, net_id) in players {
         if mounted.contains(&entity) {
             continue;
         }
-        transform.yaw += input.look_delta.x * MOUSE_SENSITIVITY;
-        transform.pitch = (transform.pitch - input.look_delta.y * MOUSE_SENSITIVITY)
-            .clamp(-1.5, 1.5);
+        let Some(input) = resolve_player_input(ctx, net_id) else {
+            continue;
+        };
+        if let Ok(mut transform) = ctx.world.get::<&mut Transform>(entity) {
+            transform.yaw += input.look_delta.x * MOUSE_SENSITIVITY;
+            transform.pitch = (transform.pitch - input.look_delta.y * MOUSE_SENSITIVITY)
+                .clamp(-1.5, 1.5);
+        }
     }
 }
 
 pub fn player_movement_system(ctx: &mut SystemContext<'_>) {
-    let Some(input) = ctx.resources.get::<InputState>().cloned() else {
-        return;
-    };
-
     let mounted: HashSet<Entity> = ctx
         .world
         .query::<(&Player, &Mounted)>()
@@ -48,19 +53,32 @@ pub fn player_movement_system(ctx: &mut SystemContext<'_>) {
         .map(|(entity, _)| entity)
         .collect();
 
-    let grounded = ctx
+    let players: Vec<(Entity, Option<u32>, bool)> = ctx
         .world
-        .query::<&Player>()
+        .query::<(&Player, &Transform, Option<&NetPlayerId>)>()
         .iter()
-        .map(|(entity, _)| (entity, is_grounded(ctx, player_position(ctx, entity))))
-        .collect::<Vec<_>>();
+        .map(|(entity, (_, transform, net_id))| {
+            (
+                entity,
+                net_id.map(|id| id.0),
+                is_grounded(ctx, transform.position),
+            )
+        })
+        .collect();
 
-    for (entity, (_, transform, velocity)) in
-        ctx.world.query_mut::<(&Player, &Transform, &mut Velocity)>()
-    {
+    for (entity, net_id, grounded) in players {
         if mounted.contains(&entity) {
             continue;
         }
+        let Some(input) = resolve_player_input(ctx, net_id) else {
+            continue;
+        };
+        let Ok(mut velocity) = ctx.world.get::<&mut Velocity>(entity) else {
+            continue;
+        };
+        let Ok(transform) = ctx.world.get::<&Transform>(entity) else {
+            continue;
+        };
 
         let forward = Vec3::new(transform.yaw.sin(), 0.0, transform.yaw.cos());
         let right = Vec3::new(forward.z, 0.0, -forward.x);
@@ -69,11 +87,6 @@ pub fn player_movement_system(ctx: &mut SystemContext<'_>) {
         velocity.0.x = wish.x * WALK_SPEED;
         velocity.0.z = wish.z * WALK_SPEED;
 
-        let grounded = grounded
-            .iter()
-            .find(|(id, _)| *id == entity)
-            .map(|(_, grounded)| *grounded)
-            .unwrap_or(false);
         if input.jump && grounded {
             velocity.0.y = JUMP_SPEED;
         }
@@ -125,11 +138,27 @@ pub fn player_physics_system(ctx: &mut SystemContext<'_>) {
     }
 }
 
-fn player_position(ctx: &SystemContext<'_>, entity: Entity) -> Vec3 {
-    ctx.world
-        .get::<&Transform>(entity)
-        .map(|transform| transform.position)
-        .unwrap_or(Vec3::ZERO)
+fn resolve_player_input(ctx: &SystemContext<'_>, net_id: Option<u32>) -> Option<InputState> {
+    match ctx
+        .resources
+        .get::<SimulationMode>()
+        .copied()
+        .unwrap_or(SimulationMode::Local)
+    {
+        SimulationMode::Local => ctx.resources.get::<InputState>().cloned(),
+        SimulationMode::AuthoritativeServer => {
+            let id = net_id?;
+            ctx.resources.get::<RemoteInputs>()?.get(id)
+        }
+        SimulationMode::NetworkClient => {
+            let local = ctx.resources.get::<LocalPlayer>()?;
+            if net_id == local.id {
+                ctx.resources.get::<InputState>().cloned()
+            } else {
+                None
+            }
+        }
+    }
 }
 
 fn is_grounded(ctx: &SystemContext<'_>, position: Vec3) -> bool {

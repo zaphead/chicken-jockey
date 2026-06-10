@@ -5,6 +5,9 @@ use hecs::Entity;
 pub struct Player;
 
 #[derive(Debug, Clone, Copy)]
+pub struct NetPlayerId(pub u32);
+
+#[derive(Debug, Clone, Copy)]
 pub struct Transform {
     pub position: Vec3,
     pub yaw: f32,

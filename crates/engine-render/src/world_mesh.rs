@@ -2,7 +2,8 @@ use std::collections::HashMap;
 
 use engine_assets::BlockRegistry;
 use engine_world::{BlockPos, CHUNK_SIZE, SparseVoxelOctree};
-use glam::IVec3;
+use glam::{IVec3, Vec3};
+use rayon::prelude::*;
 
 use crate::mesh::{MeshVertex, SolidMesh};
 
@@ -12,6 +13,9 @@ pub struct RenderScene {
     pub chunk_meshes: Vec<SolidMesh>,
     pub entity_meshes: Vec<(glam::Vec3, SolidMesh)>,
 }
+
+/// Max chunk meshes rebuilt per frame to keep the main thread responsive.
+pub const MAX_CHUNK_REBUILDS_PER_FRAME: usize = 8;
 
 #[derive(Debug, Default)]
 pub struct ChunkMeshCache {
@@ -39,18 +43,60 @@ impl ChunkMeshCache {
         &mut self,
         world: &SparseVoxelOctree,
         registry: &BlockRegistry,
-    ) -> Vec<SolidMesh> {
-        let dirty: Vec<IVec3> = self.dirty.keys().copied().collect();
-        self.dirty.clear();
-        for chunk in dirty {
-            let mesh = mesh_chunk(world, registry, chunk);
+    ) -> usize {
+        self.rebuild_dirty_near(world, registry, Vec3::ZERO, f32::MAX)
+    }
+
+    pub fn has_dirty_chunks(&self) -> bool {
+        !self.dirty.is_empty()
+    }
+
+    /// Rebuilds up to [`MAX_CHUNK_REBUILDS_PER_FRAME`] nearest dirty chunks. Returns how many were rebuilt.
+    pub fn rebuild_dirty_near(
+        &mut self,
+        world: &SparseVoxelOctree,
+        registry: &BlockRegistry,
+        camera_position: Vec3,
+        max_distance: f32,
+    ) -> usize {
+        let max_distance_sq = max_distance * max_distance;
+        let mut dirty: Vec<IVec3> = self
+            .dirty
+            .keys()
+            .copied()
+            .filter(|chunk| {
+                let center = (*chunk * CHUNK_SIZE).as_vec3() + Vec3::splat(CHUNK_SIZE as f32 * 0.5);
+                center.distance_squared(camera_position) <= max_distance_sq
+            })
+            .collect();
+        dirty.sort_by(|a, b| {
+            let center = |chunk: IVec3| {
+                (chunk * CHUNK_SIZE).as_vec3() + Vec3::splat(CHUNK_SIZE as f32 * 0.5)
+            };
+            center(*a)
+                .distance_squared(camera_position)
+                .partial_cmp(&center(*b).distance_squared(camera_position))
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
+        dirty.truncate(MAX_CHUNK_REBUILDS_PER_FRAME);
+        for chunk in &dirty {
+            self.dirty.remove(chunk);
+        }
+
+        let rebuilt: Vec<(IVec3, SolidMesh)> = dirty
+            .par_iter()
+            .map(|chunk| (*chunk, mesh_chunk(world, registry, *chunk)))
+            .collect();
+
+        let count = rebuilt.len();
+        for (chunk, mesh) in rebuilt {
             if mesh.vertices.is_empty() {
                 self.meshes.remove(&chunk);
             } else {
                 self.meshes.insert(chunk, mesh);
             }
         }
-        self.meshes.values().cloned().collect()
+        count
     }
 
     pub fn all_meshes(&self) -> Vec<SolidMesh> {
