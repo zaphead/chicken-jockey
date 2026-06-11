@@ -3,7 +3,8 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use engine_assets::{
-    load_destroy_stage_atlas, mining_textures_dir, EnvironmentTextures, ResolvedBlockMaterials,
+    load_destroy_stage_atlas, mining_textures_dir, EnvironmentTextures, GuiTextures,
+    ResolvedBlockMaterials,
 };
 use engine_core::{App, Time, SIM_DT};
 use engine_input::{apply_mouse_motion, apply_winit_event, InputState};
@@ -16,12 +17,12 @@ use client::frame::run_client_frame;
 use client::systems::input::PendingWinitInput;
 use client::diagnostics::ClientDiagnostics;
 use client::systems::net::ClientNet;
+use client::systems::menu::CursorGrabRequest;
 use client::systems::present::ClientRenderer;
 use client::systems::register_client_schedule;
 use winit::application::ApplicationHandler;
-use winit::dpi::{PhysicalPosition, PhysicalSize};
-use winit::event::{DeviceEvent, ElementState, KeyEvent, MouseButton, WindowEvent};
-use winit::keyboard::{KeyCode, PhysicalKey};
+use winit::dpi::PhysicalSize;
+use winit::event::{DeviceEvent, ElementState, MouseButton, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, EventLoop};
 use winit::window::{CursorGrabMode, Window, WindowAttributes, WindowId};
 
@@ -33,7 +34,6 @@ struct ClientApp {
     ecs: App,
     input: InputState,
     last_frame: Instant,
-    window_centered: bool,
     frame: u64,
     diagnostic_mode: bool,
 }
@@ -64,7 +64,6 @@ impl ClientApp {
             ecs,
             input: InputState::default(),
             last_frame: Instant::now(),
-            window_centered: false,
             frame: 0,
             diagnostic_mode: std::env::var("OC_DIAGNOSTIC").is_ok(),
         }
@@ -80,6 +79,7 @@ impl ClientApp {
         }
 
         run_client_frame(&mut self.ecs, delta);
+        self.apply_cursor_grab();
         self.input.clear_frame_state();
         self.frame += 1;
 
@@ -103,6 +103,19 @@ impl ClientApp {
         ));
     }
 
+    fn apply_cursor_grab(&mut self) {
+        let locked = self
+            .ecs
+            .resource::<CursorGrabRequest>()
+            .map(|request| request.locked)
+            .unwrap_or(true);
+        if locked {
+            lock_cursor(&self.window, &mut self.input);
+        } else {
+            unlock_cursor(&self.window, &mut self.input);
+        }
+    }
+
     fn try_create_renderer(&mut self, size: PhysicalSize<u32>) {
         if self.ecs.resource::<ClientRenderer>().is_some() || size.width == 0 || size.height == 0 {
             return;
@@ -124,9 +137,18 @@ impl ClientApp {
             .unwrap_or_else(|| Arc::new(engine_assets::load_environment_textures(
                 env!("CARGO_MANIFEST_DIR"),
             )));
-        let renderer = Renderer::new(window, &materials, &destroy_atlas, &environment);
+        let gui = self
+            .ecs
+            .resource::<Arc<GuiTextures>>()
+            .cloned()
+            .unwrap_or_else(|| {
+                Arc::new(engine_assets::load_gui_textures(env!("CARGO_MANIFEST_DIR")))
+            });
+        let renderer = Renderer::new(window, &materials, &destroy_atlas, &environment, &gui);
         self.ecs.insert_resource(ClientRenderer(renderer));
         if let Some(info) = self.ecs.resource_mut::<RenderSurfaceInfo>() {
+            info.width = size.width;
+            info.height = size.height;
             info.aspect = size.width as f32 / size.height.max(1) as f32;
         }
         log::info!("renderer ready");
@@ -145,8 +167,6 @@ impl ApplicationHandler for ClientApp {
                 .expect("create window"),
         );
 
-        let _ = window.request_inner_size(PhysicalSize::new(1280, 720));
-        center_window_on_monitor(&window);
         window.focus_window();
         window.request_redraw();
         self.window = Some(window);
@@ -161,17 +181,13 @@ impl ApplicationHandler for ClientApp {
         match &event {
             WindowEvent::CloseRequested => event_loop.exit(),
             WindowEvent::Resized(size) => {
-                if !self.window_centered {
-                    if let Some(window) = &self.window {
-                        center_window_on_monitor(window);
-                        self.window_centered = true;
-                    }
-                }
                 self.try_create_renderer(*size);
                 if let Some(renderer) = self.ecs.resource_mut::<ClientRenderer>() {
                     renderer.0.resize(*size);
                 }
                 if let Some(info) = self.ecs.resource_mut::<RenderSurfaceInfo>() {
+                    info.width = size.width;
+                    info.height = size.height;
                     info.aspect = size.width as f32 / size.height.max(1) as f32;
                 }
                 if let Some(window) = &self.window {
@@ -191,18 +207,14 @@ impl ApplicationHandler for ClientApp {
                 button: MouseButton::Left,
                 ..
             } => {
-                lock_cursor(&self.window, &mut self.input);
-            }
-            WindowEvent::KeyboardInput {
-                event:
-                    KeyEvent {
-                        state: ElementState::Pressed,
-                        physical_key: PhysicalKey::Code(KeyCode::Escape),
-                        ..
-                    },
-                ..
-            } => {
-                unlock_cursor(&self.window, &mut self.input);
+                let grab = self
+                    .ecs
+                    .resource::<CursorGrabRequest>()
+                    .map(|request| request.locked)
+                    .unwrap_or(true);
+                if grab {
+                    lock_cursor(&self.window, &mut self.input);
+                }
             }
             _ => {}
         }
@@ -252,26 +264,10 @@ fn unlock_cursor(window: &Option<Arc<Window>>, input: &mut InputState) {
     input.cursor_locked = false;
 }
 
-fn center_window_on_monitor(window: &Window) {
-    let monitor = window
-        .current_monitor()
-        .or_else(|| window.primary_monitor());
-    let Some(monitor) = monitor else {
-        return;
-    };
-
-    let monitor_pos = monitor.position();
-    let monitor_size = monitor.size();
-    let window_size = window.outer_size();
-    let x = monitor_pos.x + (monitor_size.width.saturating_sub(window_size.width) as i32) / 2;
-    let y = monitor_pos.y + (monitor_size.height.saturating_sub(window_size.height) as i32) / 2;
-    window.set_outer_position(PhysicalPosition::new(x, y));
-}
-
 fn window_attributes() -> WindowAttributes {
     Window::default_attributes()
         .with_title("OpenCraft")
-        .with_inner_size(PhysicalSize::new(1280, 720))
+        .with_maximized(true)
         .with_min_inner_size(PhysicalSize::new(640, 480))
         .with_visible(true)
 }

@@ -61,7 +61,7 @@ fn vec4(v: Vec3) -> [f32; 4] {
 
 pub struct SkyPipeline {
     pub pipeline: wgpu::RenderPipeline,
-    pub bind_group_layout: wgpu::BindGroupLayout,
+    _bind_group_layout: wgpu::BindGroupLayout,
     pub bind_group: wgpu::BindGroup,
     buffer: wgpu::Buffer,
 }
@@ -151,7 +151,7 @@ impl SkyPipeline {
 
         Self {
             pipeline,
-            bind_group_layout,
+            _bind_group_layout: bind_group_layout,
             bind_group,
             buffer,
         }

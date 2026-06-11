@@ -7,6 +7,7 @@ use crate::shader_source::voxel_shader_source;
 use crate::mesh::MeshVertex;
 use crate::mining_overlay::MiningOverlayPipeline;
 use crate::outline::OutlinePipeline;
+use crate::particles::ParticlePipeline;
 
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
@@ -26,6 +27,7 @@ pub struct RenderPipelines {
     pub cutout: wgpu::RenderPipeline,
     pub outline: OutlinePipeline,
     pub mining_overlay: MiningOverlayPipeline,
+    pub particles: ParticlePipeline,
     pub scene_bind_group: wgpu::BindGroup,
     pub atlas_bind_group: wgpu::BindGroup,
     scene_buffer: wgpu::Buffer,
@@ -40,7 +42,7 @@ impl RenderPipelines {
         surface_format: wgpu::TextureFormat,
         atlas: &TextureAtlas,
         destroy_atlas: &TextureAtlas,
-        colormap_rect: Option<UvRect>,
+        _colormap_rect: Option<UvRect>,
         lighting: &LightingResources,
     ) -> Self {
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
@@ -312,6 +314,14 @@ impl RenderPipelines {
             &lighting.shadow_bind_group_layout,
             destroy_atlas,
         );
+        let particles = ParticlePipeline::new(
+            device,
+            hdr_format,
+            surface_format,
+            &scene_bind_group_layout,
+            &atlas_bind_group_layout,
+            &lighting.uniform_bind_group_layout,
+        );
 
         Self {
             depth,
@@ -320,6 +330,7 @@ impl RenderPipelines {
             cutout,
             outline,
             mining_overlay,
+            particles,
             scene_bind_group,
             atlas_bind_group,
             scene_buffer,

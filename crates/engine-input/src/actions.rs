@@ -13,7 +13,10 @@ pub struct InputState {
     pub place_held: bool,
     pub selected_tool_slot: u8,
     pub cursor_locked: bool,
+    pub cursor_pos: Vec2,
     pub toggle_play_mode: bool,
+    pub toggle_pause: bool,
+    pub menu_click: bool,
 }
 
 impl InputState {
@@ -39,6 +42,8 @@ impl InputState {
         self.jump = false;
         self.interact = false;
         self.toggle_play_mode = false;
+        self.toggle_pause = false;
+        self.menu_click = false;
     }
 }
 

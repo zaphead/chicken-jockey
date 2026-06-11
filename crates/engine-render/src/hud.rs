@@ -1,5 +1,7 @@
 use bytemuck::{Pod, Zeroable};
 
+use crate::screen_text::{glyph_rows, widget_char_width, widget_glyph_pixel, widget_line_height, CELL};
+
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
 struct HudVertex {
@@ -9,7 +11,7 @@ struct HudVertex {
 
 const MAX_HUD_LINES: usize = 18;
 const MAX_HUD_CHARS_PER_LINE: usize = 24;
-const MAX_HUD_VERTICES: usize = MAX_HUD_LINES * MAX_HUD_CHARS_PER_LINE * 5 * 7 * 6 + 6;
+const MAX_HUD_VERTICES: usize = MAX_HUD_LINES * MAX_HUD_CHARS_PER_LINE * 5 * 7 * 6 + 6 * 8;
 const HUD_VERTEX_BUFFER_SIZE: u64 =
     (MAX_HUD_VERTICES * std::mem::size_of::<HudVertex>()) as u64;
 
@@ -18,12 +20,19 @@ const TEXT_COLOR: [f32; 4] = [1.0, 1.0, 1.0, 0.95];
 const CROSSHAIR_OUTLINE: [f32; 4] = [0.0, 0.0, 0.0, 0.82];
 const CROSSHAIR_CORE: [f32; 4] = [1.0, 1.0, 1.0, 0.92];
 
+const BASE_PADDING: f32 = 16.0;
+const BASE_BG_PAD: f32 = 8.0;
+const BASE_CROSSHAIR_ARM: f32 = 11.0;
+const BASE_CROSSHAIR_GAP: f32 = 3.0;
+const BASE_CROSSHAIR_CORE: f32 = 1.25;
+const BASE_CROSSHAIR_OUTLINE: f32 = 2.75;
+
 pub struct HudPipeline {
     pipeline: wgpu::RenderPipeline,
     vertex_buffer: wgpu::Buffer,
     vertex_count: u32,
     crosshair_vertices: Vec<HudVertex>,
-    crosshair_size: (u32, u32),
+    crosshair_key: (u32, u32, u32),
 }
 
 impl HudPipeline {
@@ -95,18 +104,29 @@ impl HudPipeline {
             vertex_buffer,
             vertex_count: 0,
             crosshair_vertices: Vec::new(),
-            crosshair_size: (0, 0),
+            crosshair_key: (0, 0, 0),
         }
     }
 
-    pub fn set_text(&mut self, queue: &wgpu::Queue, text: &str, width: u32, height: u32) {
-        if self.crosshair_size != (width, height) {
+    pub fn set_text(
+        &mut self,
+        queue: &wgpu::Queue,
+        text: &str,
+        width: u32,
+        height: u32,
+        scale: f32,
+        show_crosshair: bool,
+    ) {
+        let scale_key = scale.to_bits();
+        if self.crosshair_key != (width, height, scale_key) {
             self.crosshair_vertices.clear();
-            append_crosshair(&mut self.crosshair_vertices, width, height);
-            self.crosshair_size = (width, height);
+            append_crosshair(&mut self.crosshair_vertices, width, height, scale);
+            self.crosshair_key = (width, height, scale_key);
         }
-        let mut vertices = build_hud_vertices(text, width, height);
-        vertices.extend_from_slice(&self.crosshair_vertices);
+        let mut vertices = build_hud_vertices(text, width, height, scale);
+        if show_crosshair {
+            vertices.extend_from_slice(&self.crosshair_vertices);
+        }
         vertices.truncate(MAX_HUD_VERTICES);
         self.vertex_count = vertices.len() as u32;
         if !vertices.is_empty() {
@@ -124,15 +144,11 @@ impl HudPipeline {
     }
 }
 
-fn build_hud_vertices(text: &str, width: u32, height: u32) -> Vec<HudVertex> {
-    const CELL: f32 = 5.0;
-    const SCALE: f32 = 2.0;
-    const PADDING: f32 = 16.0;
-    const BG_PAD: f32 = 8.0;
-    const GAP: f32 = 1.0;
-    const LINE_GAP: f32 = 10.0;
-    const LINE_HEIGHT: f32 = CELL * SCALE + LINE_GAP;
-    const CHAR_WIDTH: f32 = (CELL + GAP) * SCALE;
+fn build_hud_vertices(text: &str, width: u32, height: u32, scale: f32) -> Vec<HudVertex> {
+    let padding = BASE_PADDING * scale;
+    let bg_pad = BASE_BG_PAD * scale;
+    let row_height = widget_line_height(scale) + 2.0 * scale;
+    let pixel = widget_glyph_pixel(scale);
 
     let lines: Vec<&str> = text.lines().take(MAX_HUD_LINES).collect();
     if lines.is_empty() {
@@ -144,28 +160,28 @@ fn build_hud_vertices(text: &str, width: u32, height: u32) -> Vec<HudVertex> {
         .map(|line| line.chars().count().min(MAX_HUD_CHARS_PER_LINE))
         .max()
         .unwrap_or(0) as f32;
-    let panel_w = max_line_chars * CHAR_WIDTH + BG_PAD * 2.0;
-    let panel_h = lines.len() as f32 * LINE_HEIGHT - LINE_GAP + BG_PAD * 2.0;
+    let panel_w = max_line_chars * widget_char_width(scale) + bg_pad * 2.0;
+    let panel_h = lines.len() as f32 * row_height - 2.0 * scale + bg_pad * 2.0;
 
     let mut vertices = Vec::new();
     push_quad(
         &mut vertices,
-        PADDING - BG_PAD,
-        PADDING - BG_PAD,
-        PADDING - BG_PAD + panel_w,
-        PADDING - BG_PAD + panel_h,
+        padding - bg_pad,
+        padding - bg_pad,
+        padding - bg_pad + panel_w,
+        padding - bg_pad + panel_h,
         width,
         height,
         BG_COLOR,
     );
 
     for (line_index, line) in lines.iter().enumerate() {
-        let py = PADDING + line_index as f32 * LINE_HEIGHT;
-        let mut cursor_x = PADDING;
+        let py = padding + line_index as f32 * row_height;
+        let mut cursor_x = padding;
 
         for ch in line.chars().take(MAX_HUD_CHARS_PER_LINE) {
             if ch == ' ' {
-                cursor_x += CHAR_WIDTH;
+                cursor_x += widget_char_width(scale);
                 continue;
             }
             let Some(glyph) = glyph_rows(ch) else {
@@ -174,15 +190,22 @@ fn build_hud_vertices(text: &str, width: u32, height: u32) -> Vec<HudVertex> {
             for (row, bits) in glyph.iter().enumerate() {
                 for col in 0..CELL as usize {
                     if bits & (1 << (CELL as usize - 1 - col)) != 0 {
-                        let x0 = cursor_x + col as f32 * SCALE;
-                        let y0 = py + row as f32 * SCALE;
-                        let x1 = x0 + SCALE;
-                        let y1 = y0 + SCALE;
-                        push_quad(&mut vertices, x0, y0, x1, y1, width, height, TEXT_COLOR);
+                        let x0 = cursor_x + col as f32 * pixel;
+                        let y0 = py + row as f32 * pixel;
+                        push_quad(
+                            &mut vertices,
+                            x0,
+                            y0,
+                            x0 + pixel,
+                            y0 + pixel,
+                            width,
+                            height,
+                            TEXT_COLOR,
+                        );
                     }
                 }
             }
-            cursor_x += CHAR_WIDTH;
+            cursor_x += widget_char_width(scale);
         }
     }
 
@@ -213,92 +236,92 @@ fn push_quad(
     vertices.push(vtx(x0, y1));
 }
 
-fn append_crosshair(vertices: &mut Vec<HudVertex>, width: u32, height: u32) {
+fn append_crosshair(vertices: &mut Vec<HudVertex>, width: u32, height: u32, scale: f32) {
     let cx = width.max(1) as f32 * 0.5;
     let cy = height.max(1) as f32 * 0.5;
-    const ARM: f32 = 11.0;
-    const GAP: f32 = 3.0;
-    const CORE: f32 = 1.25;
-    const OUTLINE: f32 = 2.75;
+    let arm = BASE_CROSSHAIR_ARM * scale;
+    let gap = BASE_CROSSHAIR_GAP * scale;
+    let core = BASE_CROSSHAIR_CORE * scale;
+    let outline = BASE_CROSSHAIR_OUTLINE * scale;
 
     push_crosshair_bar(
         vertices,
         width,
         height,
-        cx - ARM - 1.0,
-        cy - OUTLINE,
-        cx - GAP + 1.0,
-        cy + OUTLINE,
+        cx - arm - scale,
+        cy - outline,
+        cx - gap + scale,
+        cy + outline,
         CROSSHAIR_OUTLINE,
     );
     push_crosshair_bar(
         vertices,
         width,
         height,
-        cx + GAP - 1.0,
-        cy - OUTLINE,
-        cx + ARM + 1.0,
-        cy + OUTLINE,
+        cx + gap - scale,
+        cy - outline,
+        cx + arm + scale,
+        cy + outline,
         CROSSHAIR_OUTLINE,
     );
     push_crosshair_bar(
         vertices,
         width,
         height,
-        cx - OUTLINE,
-        cy - ARM - 1.0,
-        cx + OUTLINE,
-        cy - GAP + 1.0,
+        cx - outline,
+        cy - arm - scale,
+        cx + outline,
+        cy - gap + scale,
         CROSSHAIR_OUTLINE,
     );
     push_crosshair_bar(
         vertices,
         width,
         height,
-        cx - OUTLINE,
-        cy + GAP - 1.0,
-        cx + OUTLINE,
-        cy + ARM + 1.0,
+        cx - outline,
+        cy + gap - scale,
+        cx + outline,
+        cy + arm + scale,
         CROSSHAIR_OUTLINE,
     );
     push_crosshair_bar(
         vertices,
         width,
         height,
-        cx - ARM,
-        cy - CORE,
-        cx - GAP,
-        cy + CORE,
+        cx - arm,
+        cy - core,
+        cx - gap,
+        cy + core,
         CROSSHAIR_CORE,
     );
     push_crosshair_bar(
         vertices,
         width,
         height,
-        cx + GAP,
-        cy - CORE,
-        cx + ARM,
-        cy + CORE,
+        cx + gap,
+        cy - core,
+        cx + arm,
+        cy + core,
         CROSSHAIR_CORE,
     );
     push_crosshair_bar(
         vertices,
         width,
         height,
-        cx - CORE,
-        cy - ARM,
-        cx + CORE,
-        cy - GAP,
+        cx - core,
+        cy - arm,
+        cx + core,
+        cy - gap,
         CROSSHAIR_CORE,
     );
     push_crosshair_bar(
         vertices,
         width,
         height,
-        cx - CORE,
-        cy + GAP,
-        cx + CORE,
-        cy + ARM,
+        cx - core,
+        cy + gap,
+        cx + core,
+        cy + arm,
         CROSSHAIR_CORE,
     );
 }
@@ -314,47 +337,4 @@ fn push_crosshair_bar(
     color: [f32; 4],
 ) {
     push_quad(vertices, x0, y0, x1, y1, width, height, color);
-}
-
-fn glyph_rows(ch: char) -> Option<[u8; 7]> {
-    match ch.to_ascii_uppercase() {
-        '0' => Some([0b01110, 0b10001, 0b10011, 0b10101, 0b11001, 0b10001, 0b01110]),
-        '1' => Some([0b00100, 0b01100, 0b00100, 0b00100, 0b00100, 0b00100, 0b01110]),
-        '2' => Some([0b01110, 0b10001, 0b00001, 0b00110, 0b01000, 0b10000, 0b11111]),
-        '3' => Some([0b11110, 0b00001, 0b00010, 0b00110, 0b00001, 0b10001, 0b01110]),
-        '4' => Some([0b00010, 0b00110, 0b01010, 0b10010, 0b11111, 0b00010, 0b00010]),
-        '5' => Some([0b11111, 0b10000, 0b11110, 0b00001, 0b00001, 0b10001, 0b01110]),
-        '6' => Some([0b00110, 0b01000, 0b10000, 0b11110, 0b10001, 0b10001, 0b01110]),
-        '7' => Some([0b11111, 0b00001, 0b00010, 0b00100, 0b01000, 0b01000, 0b01000]),
-        '8' => Some([0b01110, 0b10001, 0b10001, 0b01110, 0b10001, 0b10001, 0b01110]),
-        '9' => Some([0b01110, 0b10001, 0b10001, 0b01111, 0b00001, 0b00010, 0b01100]),
-        '-' => Some([0b00000, 0b00000, 0b00000, 0b11111, 0b00000, 0b00000, 0b00000]),
-        '.' => Some([0b00000, 0b00000, 0b00000, 0b00000, 0b00000, 0b01100, 0b01100]),
-        ':' => Some([0b00000, 0b01100, 0b01100, 0b00000, 0b01100, 0b01100, 0b00000]),
-        'A' => Some([0b01110, 0b10001, 0b10001, 0b11111, 0b10001, 0b10001, 0b10001]),
-        'C' => Some([0b01110, 0b10001, 0b10000, 0b10000, 0b10000, 0b10001, 0b01110]),
-        'D' => Some([0b11110, 0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b11110]),
-        'E' => Some([0b11111, 0b10000, 0b10000, 0b11110, 0b10000, 0b10000, 0b11111]),
-        'F' => Some([0b11111, 0b10000, 0b10000, 0b11110, 0b10000, 0b10000, 0b10000]),
-        'G' => Some([0b01110, 0b10001, 0b10000, 0b10111, 0b10001, 0b10001, 0b01110]),
-        'H' => Some([0b10001, 0b10001, 0b10001, 0b11111, 0b10001, 0b10001, 0b10001]),
-        'I' => Some([0b01110, 0b00100, 0b00100, 0b00100, 0b00100, 0b00100, 0b01110]),
-        'J' => Some([0b00111, 0b00010, 0b00010, 0b00010, 0b10010, 0b10010, 0b01100]),
-        'K' => Some([0b10001, 0b10010, 0b10100, 0b11000, 0b10100, 0b10010, 0b10001]),
-        'L' => Some([0b10000, 0b10000, 0b10000, 0b10000, 0b10000, 0b10000, 0b11111]),
-        'M' => Some([0b10001, 0b11011, 0b10101, 0b10001, 0b10001, 0b10001, 0b10001]),
-        'N' => Some([0b10001, 0b11001, 0b10101, 0b10011, 0b10001, 0b10001, 0b10001]),
-        'O' => Some([0b01110, 0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b01110]),
-        'P' => Some([0b11110, 0b10001, 0b10001, 0b11110, 0b10000, 0b10000, 0b10000]),
-        'R' => Some([0b11110, 0b10001, 0b10001, 0b11110, 0b10100, 0b10010, 0b10001]),
-        'S' => Some([0b01111, 0b10000, 0b10000, 0b01110, 0b00001, 0b00001, 0b11110]),
-        'T' => Some([0b11111, 0b00100, 0b00100, 0b00100, 0b00100, 0b00100, 0b00100]),
-        'U' => Some([0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b01110]),
-        'V' => Some([0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b01010, 0b00100]),
-        'W' => Some([0b10001, 0b10001, 0b10001, 0b10101, 0b10101, 0b11011, 0b10001]),
-        'X' => Some([0b10001, 0b10001, 0b01010, 0b00100, 0b01010, 0b10001, 0b10001]),
-        'Y' => Some([0b10001, 0b10001, 0b01010, 0b00100, 0b00100, 0b00100, 0b00100]),
-        'Z' => Some([0b11111, 0b00001, 0b00010, 0b00100, 0b01000, 0b10000, 0b11111]),
-        _ => None,
-    }
 }

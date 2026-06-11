@@ -2,8 +2,8 @@ use glam::Vec3;
 
 /// Minecraft-style day length in ticks (one full cycle).
 pub const DAY_TICKS: f32 = 24_000.0;
-/// Default real-time duration for one full day (60 seconds for rapid testing).
-pub const DEFAULT_DAY_LENGTH_SECS: f32 = 60.0;
+/// Default real-time duration for one full day (10 minutes).
+pub const DEFAULT_DAY_LENGTH_SECS: f32 = 600.0;
 pub const MOON_PHASE_COUNT: u8 = 8;
 
 /// Authoritative world clock; advances on client and server.

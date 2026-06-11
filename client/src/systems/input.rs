@@ -5,6 +5,8 @@ use game::{
     PlayerInputs, Transform,
 };
 
+use crate::systems::menu::{PauseMenu, PauseScreen};
+
 pub struct PendingWinitInput(pub InputState);
 
 pub fn apply_local_look_system(ctx: &mut SystemContext<'_>) {
@@ -59,8 +61,15 @@ pub fn sync_local_input_system(ctx: &mut SystemContext<'_>) {
         .resources
         .get::<ActivePlayMode>()
         .is_none_or(|mode| mode.0 == PlayMode::Survival);
+    let menu_open = ctx
+        .resources
+        .get::<PauseMenu>()
+        .is_some_and(|menu| menu.screen != PauseScreen::Closed);
 
-    let gameplay = GameplayInput {
+    let gameplay = if menu_open {
+        GameplayInput::default()
+    } else {
+        GameplayInput {
         move_axis: pending.0.move_axis,
         look_delta: pending.0.look_delta,
         vertical_axis: pending.0.vertical_axis(),
@@ -70,6 +79,7 @@ pub fn sync_local_input_system(ctx: &mut SystemContext<'_>) {
         break_block: pending.0.break_held,
         place_block: pending.0.place_held,
         tool_slot: pending.0.selected_tool_slot,
+        }
     };
 
     if let Some(inputs) = ctx.resources.get_mut::<PlayerInputs>() {

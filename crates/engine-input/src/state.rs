@@ -1,3 +1,4 @@
+use glam::Vec2;
 use winit::event::{ElementState, KeyEvent, MouseButton, WindowEvent};
 use winit::keyboard::{KeyCode, PhysicalKey};
 
@@ -6,12 +7,24 @@ use crate::actions::InputState;
 pub fn apply_winit_event(input: &mut InputState, event: &WindowEvent) {
     match event {
         WindowEvent::KeyboardInput { event, .. } => apply_keyboard(input, event),
+        WindowEvent::CursorMoved { position, .. } => {
+            input.cursor_pos = Vec2::new(position.x as f32, position.y as f32);
+        }
         WindowEvent::MouseInput { state, button, .. } => match button {
             MouseButton::Left => {
-                input.break_held = *state == ElementState::Pressed;
+                let pressed = *state == ElementState::Pressed;
+                if input.cursor_locked {
+                    input.break_held = pressed;
+                } else if pressed {
+                    input.menu_click = true;
+                } else {
+                    input.break_held = false;
+                }
             }
             MouseButton::Right => {
-                input.place_held = *state == ElementState::Pressed;
+                if input.cursor_locked {
+                    input.place_held = *state == ElementState::Pressed;
+                }
             }
             _ => {}
         },
@@ -60,6 +73,7 @@ fn apply_keyboard(input: &mut InputState, event: &KeyEvent) {
         KeyCode::Digit7 if pressed => input.selected_tool_slot = 6,
         KeyCode::Digit8 if pressed => input.selected_tool_slot = 7,
         KeyCode::Digit9 if pressed => input.selected_tool_slot = 8,
+        KeyCode::Escape if pressed => input.toggle_pause = true,
         _ => {}
     }
 }

@@ -1,10 +1,11 @@
 use std::sync::Arc;
 
-use engine_assets::{EnvironmentTextures, ResolvedBlockMaterials, UvRect};
+use engine_assets::{EnvironmentTextures, GuiTextures, ResolvedBlockMaterials, UvRect};
 use wgpu::SurfaceError;
 use winit::dpi::PhysicalSize;
 use winit::window::Window;
 
+use crate::gui::{GuiFrame, GuiPipeline};
 use crate::hud::HudPipeline;
 use crate::lighting::{compute_light_view_proj, LightingResources};
 use crate::render_passes;
@@ -31,6 +32,8 @@ pub struct Renderer {
     cutout_meshes: Vec<GpuMesh>,
     uploaded_mesh_generation: u64,
     hud: HudPipeline,
+    gui: GuiPipeline,
+    gui_textures: GuiTextures,
 }
 
 impl Renderer {
@@ -39,6 +42,7 @@ impl Renderer {
         materials: &ResolvedBlockMaterials,
         destroy_atlas: &engine_assets::TextureAtlas,
         environment: &EnvironmentTextures,
+        gui_textures: &GuiTextures,
     ) -> Self {
         let size = window.inner_size();
         let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
@@ -111,6 +115,7 @@ impl Renderer {
         );
 
         let hud = HudPipeline::new(&device, surface_format);
+        let gui = GuiPipeline::new(&device, &queue, surface_format, gui_textures);
 
         Self {
             window,
@@ -129,6 +134,8 @@ impl Renderer {
             cutout_meshes: Vec::new(),
             uploaded_mesh_generation: u64::MAX,
             hud,
+            gui,
+            gui_textures: gui_textures.clone(),
         }
     }
 
@@ -173,7 +180,13 @@ impl Renderer {
         };
     }
 
-    pub fn render(&mut self, scene: &RenderScene, hud_label: Option<&str>) -> Result<(), SurfaceError> {
+    pub fn render(
+        &mut self,
+        scene: &RenderScene,
+        hud_label: Option<&str>,
+        gui_scale: f32,
+        gui: Option<&GuiFrame>,
+    ) -> Result<(), SurfaceError> {
         let lighting = scene.lighting;
         let camera = scene.camera;
         let view_proj = camera.view_projection();
@@ -215,12 +228,35 @@ impl Renderer {
             },
         );
 
+        let menu_open = gui.is_some_and(|frame| !frame.is_empty());
+        let scale = gui_scale.max(0.25);
         self.hud.set_text(
             &self.queue,
             hud_label.unwrap_or(""),
             self.config.width,
             self.config.height,
+            scale,
+            !menu_open,
         );
+        if let Some(frame) = gui.filter(|gui| !gui.is_empty()) {
+            self.gui
+                .set_frame(&self.queue, frame, &self.gui_textures);
+        } else {
+            self.gui.set_frame(
+                &self.queue,
+                &GuiFrame::default(),
+                &self.gui_textures,
+            );
+        }
+
+        let particle_mesh = if scene.particles.vertices.is_empty() {
+            None
+        } else {
+            Some(&scene.particles)
+        };
+        self.pipelines
+            .particles
+            .sync_mesh(&self.queue, particle_mesh);
 
         let output = self.surface.get_current_texture()?;
         let view = output
@@ -270,6 +306,13 @@ impl Renderer {
             &self.lighting,
             &self.pipelines,
             &self.cutout_meshes,
+        );
+        render_passes::record_particle_pass(
+            &mut encoder,
+            &self.post.hdr_view,
+            &self.depth_view,
+            &self.lighting,
+            &self.pipelines,
         );
         render_passes::record_post_pass(&mut encoder, &view, &self.post);
 
@@ -358,6 +401,24 @@ impl Renderer {
                 timestamp_writes: None,
             });
             self.hud.draw(&mut pass);
+        }
+
+        if gui.is_some_and(|frame| !frame.is_empty()) {
+            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("gui_pass"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: &view,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Load,
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: None,
+                occlusion_query_set: None,
+                timestamp_writes: None,
+            });
+            self.gui.draw(&mut pass);
         }
 
         self.queue.submit(Some(encoder.finish()));

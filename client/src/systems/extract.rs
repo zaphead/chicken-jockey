@@ -3,10 +3,10 @@ use std::sync::Arc;
 use engine_assets::{BlockRegistry, ResolvedBlockMaterials};
 use engine_core::{SystemContext, Time};
 use engine_render::{
-    build_mining_overlay_mesh, Camera, MiningOverlay, RenderExtractState,
+    build_mining_overlay_mesh, Camera, MiningOverlay, ParticleSystem, RenderExtractState,
     RenderSurfaceInfo, RenderWorld,
 };
-use engine_world::{BiomeMap, SparseVoxelOctree, VoxelChanged};
+use engine_world::{BiomeMap, SparseVoxelOctree, VoxelCell, VoxelChanged};
 use game::{
     build_lighting_snapshot, destroy_stage, local_player_entity, raycast_voxel, ActiveDebugWorld,
     ActivePlayMode, BlockMiningState, DayNightCycle, DebugWorldKind, DisplayedPlayerView, PlayMode,
@@ -21,10 +21,40 @@ use crate::systems::interpolation::{
 use crate::systems::spectator::SpectatorCamera;
 
 pub fn sync_block_changes_system(ctx: &mut SystemContext<'_>) {
+    let changes: Vec<VoxelChanged> = ctx.events.drain::<VoxelChanged>();
+    if changes.is_empty() {
+        return;
+    }
+
+    let registry = ctx.resources.get::<BlockRegistry>().cloned();
+    let materials = ctx.resources.get::<Arc<ResolvedBlockMaterials>>().cloned();
+    let biome = ctx
+        .resources
+        .get::<BiomeMap>()
+        .cloned()
+        .unwrap_or_default();
+
+    if let (Some(registry), Some(materials), Some(particles)) = (
+        registry,
+        materials,
+        ctx.resources.get_mut::<ParticleSystem>(),
+    ) {
+        for change in &changes {
+            if change.old_cell.id != 0 && change.new_cell == VoxelCell::AIR {
+                particles.spawn_block_break(
+                    change.position,
+                    change.old_cell,
+                    &registry,
+                    &materials,
+                    &biome,
+                );
+            }
+        }
+    }
+
     let Some(state) = ctx.resources.get_mut::<RenderExtractState>() else {
         return;
     };
-    let changes: Vec<VoxelChanged> = ctx.events.drain::<VoxelChanged>();
     for change in changes {
         state.mesh_cache.mark_dirty_neighbors(change.position);
     }

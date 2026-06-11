@@ -7,6 +7,7 @@ use rayon::prelude::*;
 
 use crate::ctm::neighbor_mask_for_face;
 use crate::extract::MiningOverlay;
+use crate::particles::ParticleMesh;
 use crate::mesh::{append_face, tint_index_for, MeshBuckets, SolidMesh};
 
 #[derive(Debug, Clone)]
@@ -18,6 +19,7 @@ pub struct RenderScene {
     pub entity_meshes: Vec<(glam::Vec3, SolidMesh)>,
     pub target_block: Option<BlockPos>,
     pub mining_overlay: Option<MiningOverlay>,
+    pub particles: ParticleMesh,
     pub lighting: crate::lighting::LightingSnapshot,
 }
 
@@ -31,6 +33,7 @@ impl Default for RenderScene {
             entity_meshes: Vec::new(),
             target_block: None,
             mining_overlay: None,
+            particles: ParticleMesh::default(),
             lighting: crate::lighting::LightingSnapshot::default(),
         }
     }
@@ -273,6 +276,7 @@ pub fn extract_render_scene(
     entity_meshes: Vec<(glam::Vec3, SolidMesh)>,
     target_block: Option<BlockPos>,
     mining_overlay: Option<MiningOverlay>,
+    particles: ParticleMesh,
     lighting: crate::lighting::LightingSnapshot,
 ) -> RenderScene {
     RenderScene {
@@ -283,6 +287,7 @@ pub fn extract_render_scene(
         entity_meshes,
         target_block,
         mining_overlay,
+        particles,
         lighting,
     }
 }

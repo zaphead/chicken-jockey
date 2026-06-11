@@ -1,12 +1,12 @@
 use std::sync::Arc;
 
 use engine_assets::{
-    blocks_asset_path, load_block_registry, load_environment_textures, load_tool_registry,
-    pack_block_materials, textures_asset_path, tools_asset_path, AssetServer,
+    blocks_asset_path, load_block_registry, load_environment_textures, load_gui_textures,
+    load_tool_registry, pack_block_materials, textures_asset_path, tools_asset_path, AssetServer,
 };
 use engine_core::App;
 use engine_input::InputState;
-use engine_render::{RenderExtractState, RenderSurfaceInfo, RenderWorld};
+use engine_render::{ParticleSystem, RenderExtractState, RenderSurfaceInfo, RenderWorld};
 use engine_world::{BiomeMap, SparseVoxelOctree, WorldMutationQueue};
 use game::{
     register_local_client_systems, ActiveDebugWorld, ActivePlayMode, DayNightCycle, DebugWorldKind,
@@ -15,6 +15,7 @@ use game::{
 };
 
 use crate::systems::input::PendingWinitInput;
+use crate::systems::menu::{ClientSettings, CursorGrabRequest, PauseMenu};
 use crate::systems::interpolation::PreviousPlayerTransform;
 use crate::systems::register_client_schedule;
 use crate::systems::spectator::reset_spectator_for_world;
@@ -35,12 +36,18 @@ pub fn bootstrap_client_shell(app: &mut App) {
     app.insert_resource(LocalPlayerId::default());
     app.insert_resource(RenderExtractState::default());
     app.insert_resource(RenderWorld::default());
+    app.insert_resource(ParticleSystem::default());
     app.insert_resource(RenderSurfaceInfo::default());
     app.insert_resource(reset_spectator_for_world(DebugWorldKind::Flat, seed_value));
     app.insert_resource(ActivePlayMode::default());
     app.insert_resource(DisplayedPlayerView::default());
     app.insert_resource(ActiveDebugWorld::default());
     app.insert_resource(DayNightCycle::default());
+    app.insert_resource(PauseMenu::default());
+    app.insert_resource(ClientSettings::default());
+    app.insert_resource(CursorGrabRequest {
+        locked: true,
+    });
 }
 
 /// Loads block registry and packs block textures into a single resource.
@@ -57,6 +64,7 @@ pub fn bootstrap_client_resources(app: &mut App, manifest_dir: &str) {
     app.insert_resource(tools);
     app.insert_resource(Arc::new(packed));
     app.insert_resource(Arc::new(load_environment_textures(manifest_dir)));
+    app.insert_resource(Arc::new(load_gui_textures(manifest_dir)));
 }
 
 /// Shared client ECS bootstrap for the game binary, diagnostics, and tests.

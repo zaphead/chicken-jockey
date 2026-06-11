@@ -56,9 +56,16 @@ pub fn present_frame_system(ctx: &mut SystemContext<'_>) {
                 Vec::new(),
                 world.target_block,
                 world.mining_overlay.clone(),
+                world.particles.clone(),
                 world.lighting,
             );
-            if let Err(error) = renderer.0.render(&scene, Some(&hud_text)) {
+            let gui = if world.gui.is_empty() {
+                None
+            } else {
+                Some(&world.gui)
+            };
+            let gui_scale = world.gui_scale.max(0.25);
+            if let Err(error) = renderer.0.render(&scene, Some(&hud_text), gui_scale, gui) {
                 log::warn!("render error: {error:?}");
             }
             true

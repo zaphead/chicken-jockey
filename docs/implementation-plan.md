@@ -402,7 +402,7 @@ Full client–server model per design doc §7:
 
 ### 2026-06-10 — Lighting & atmosphere (Phase 20)
 
-- `DayNightCycle` in `game` (60s / 24000-tick MC cycle); `day_night_system` on client + server.
+- `DayNightCycle` in `game` (600s / 24000-tick MC cycle); `day_night_system` on client + server.
 - Whimscape sun + 8-phase moon strip, `sky0`/`fog0` colormaps in `assets/textures/environment/`.
 - Render passes: sky (HDR) → 4096² shadow map → depth prepass → lit opaque/cutout (HDR) → SSAO/fog/ACES post → overlays/HUD.
 - Shared `lighting_shared.wgsl` for voxel + mining overlay; CPU-only night darkness in `build_lighting_snapshot`.

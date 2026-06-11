@@ -169,6 +169,45 @@ pub fn record_cutout_pass(
     draw_meshes(&mut pass, cutout_meshes);
 }
 
+pub fn record_particle_pass<'a>(
+    encoder: &mut wgpu::CommandEncoder,
+    hdr_view: &wgpu::TextureView,
+    depth_view: &wgpu::TextureView,
+    lighting: &LightingResources,
+    pipelines: &'a RenderPipelines,
+) {
+    if pipelines.particles.index_count == 0 {
+        return;
+    }
+    let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+        label: Some("particle_pass"),
+        color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+            view: hdr_view,
+            resolve_target: None,
+            ops: wgpu::Operations {
+                load: wgpu::LoadOp::Load,
+                store: wgpu::StoreOp::Store,
+            },
+        })],
+        depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+            view: depth_view,
+            depth_ops: Some(wgpu::Operations {
+                load: wgpu::LoadOp::Load,
+                store: wgpu::StoreOp::Store,
+            }),
+            stencil_ops: None,
+        }),
+        occlusion_query_set: None,
+        timestamp_writes: None,
+    });
+    pipelines.particles.draw_hdr(
+        &mut pass,
+        &pipelines.scene_bind_group,
+        &pipelines.atlas_bind_group,
+        &lighting.uniform_bind_group,
+    );
+}
+
 pub fn record_post_pass(
     encoder: &mut wgpu::CommandEncoder,
     swapchain_view: &wgpu::TextureView,

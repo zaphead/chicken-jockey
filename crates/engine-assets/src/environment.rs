@@ -42,21 +42,21 @@ pub fn load_environment_textures(manifest_dir: &str) -> EnvironmentTextures {
     }
 }
 
-fn load_rgba(path: &Path) -> image::RgbaImage {
+fn load_rgba(path: &Path) -> Result<image::RgbaImage, String> {
     image::open(path)
-        .unwrap_or_else(|error| panic!("load {}: {error}", path.display()))
-        .into_rgba8()
+        .map(|image| image.into_rgba8())
+        .map_err(|error| format!("load {}: {error}", path.display()))
 }
 
 fn pack_environment(dir: &Path) -> Result<EnvironmentTextures, String> {
-    let sun = load_rgba(&dir.join("sun.png"));
-    let sky = load_rgba(&dir.join("sky0.png"));
-    let fog = load_rgba(&dir.join("fog0.png"));
+    let sun = load_rgba(&dir.join("sun.png"))?;
+    let sky = load_rgba(&dir.join("sky0.png"))?;
+    let fog = load_rgba(&dir.join("fog0.png"))?;
 
     let moon_images: Vec<_> = MOON_PHASE_FILES
         .iter()
         .map(|name| load_rgba(&dir.join(name)))
-        .collect();
+        .collect::<Result<_, _>>()?;
 
     let moon_w = moon_images[0].width();
     let moon_h = moon_images[0].height();

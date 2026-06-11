@@ -30,7 +30,8 @@ pub use movement::{
     wish_direction_horizontal, MOUSE_SENSITIVITY,
 };
 pub use day_night::{
-    build_lighting_snapshot, format_time_of_day, time_of_day_label, DayNightCycle, LightingSnapshot,
+    build_lighting_snapshot, format_time_of_day, time_of_day_label, DayNightCycle,
+    DEFAULT_DAY_LENGTH_SECS, LightingSnapshot,
 };
 pub use debug_world::{iter_mesh_chunks, ActiveDebugWorld, DebugWorldKind};
 pub use play_mode::{ActivePlayMode, PlayMode};

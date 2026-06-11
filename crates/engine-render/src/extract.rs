@@ -1,9 +1,11 @@
 use engine_world::BlockPos;
 
 use crate::camera::Camera;
+use crate::gui::GuiFrame;
 use crate::lighting::LightingSnapshot;
 use crate::mesh::SolidMesh;
 use crate::mining_overlay::MiningOverlayMesh;
+use crate::particles::ParticleMesh;
 use crate::world_mesh::ChunkMeshCache;
 
 #[derive(Debug, Clone)]
@@ -11,7 +13,7 @@ pub struct MiningOverlay {
     pub mesh: MiningOverlayMesh,
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct RenderWorld {
     pub camera: Camera,
     pub opaque: SolidMesh,
@@ -20,8 +22,31 @@ pub struct RenderWorld {
     pub lighting: LightingSnapshot,
     pub target_block: Option<BlockPos>,
     pub mining_overlay: Option<MiningOverlay>,
+    pub particles: ParticleMesh,
     pub mesh_generation: u64,
     pub ready: bool,
+    /// Global UI scale from client settings (HUD, crosshair, menus).
+    pub gui_scale: f32,
+    pub gui: GuiFrame,
+}
+
+impl Default for RenderWorld {
+    fn default() -> Self {
+        Self {
+            camera: Camera::default(),
+            opaque: SolidMesh::default(),
+            cutout: SolidMesh::default(),
+            animation_tick: 0,
+            lighting: LightingSnapshot::default(),
+            target_block: None,
+            mining_overlay: None,
+            particles: ParticleMesh::default(),
+            mesh_generation: 0,
+            ready: false,
+            gui_scale: 4.0,
+            gui: GuiFrame::default(),
+        }
+    }
 }
 
 impl RenderWorld {
@@ -48,5 +73,7 @@ pub struct RenderExtractState {
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct RenderSurfaceInfo {
+    pub width: u32,
+    pub height: u32,
     pub aspect: f32,
 }
