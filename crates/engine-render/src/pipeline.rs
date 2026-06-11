@@ -2,6 +2,8 @@ use bytemuck::{Pod, Zeroable};
 use engine_assets::{TextureAtlas, UvRect};
 use wgpu::util::DeviceExt;
 
+use crate::lighting::LightingResources;
+use crate::shader_source::voxel_shader_source;
 use crate::mesh::MeshVertex;
 use crate::mining_overlay::MiningOverlayPipeline;
 use crate::outline::OutlinePipeline;
@@ -11,16 +13,15 @@ use crate::outline::OutlinePipeline;
 pub struct SceneUniform {
     pub view_proj: [[f32; 4]; 4],
     pub animation_tick: u32,
-    /// WGSL pads `vec2` fields to 8-byte alignment after `u32`.
     pub _align_colormap: u32,
     pub colormap_min: [f32; 2],
     pub colormap_max: [f32; 2],
-    /// WGSL rounds uniform struct size up to 16-byte alignment (88 → 96).
     pub _struct_pad: [u32; 2],
 }
 
 pub struct RenderPipelines {
     pub depth: wgpu::RenderPipeline,
+    pub shadow: wgpu::RenderPipeline,
     pub opaque: wgpu::RenderPipeline,
     pub cutout: wgpu::RenderPipeline,
     pub outline: OutlinePipeline,
@@ -35,14 +36,16 @@ impl RenderPipelines {
     pub fn new(
         device: &wgpu::Device,
         queue: &wgpu::Queue,
+        hdr_format: wgpu::TextureFormat,
         surface_format: wgpu::TextureFormat,
         atlas: &TextureAtlas,
         destroy_atlas: &TextureAtlas,
         colormap_rect: Option<UvRect>,
+        lighting: &LightingResources,
     ) -> Self {
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("voxel_shader"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("voxel.wgsl").into()),
+            source: voxel_shader_source(),
         });
 
         let scene_bind_group_layout =
@@ -85,9 +88,25 @@ impl RenderPipelines {
 
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("pipeline_layout"),
-            bind_group_layouts: &[&scene_bind_group_layout, &atlas_bind_group_layout],
+            bind_group_layouts: &[
+                &scene_bind_group_layout,
+                &atlas_bind_group_layout,
+                &lighting.uniform_bind_group_layout,
+                &lighting.shadow_bind_group_layout,
+            ],
             push_constant_ranges: &[],
         });
+
+        let shadow_pipeline_layout =
+            device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("shadow_pipeline_layout"),
+                bind_group_layouts: &[
+                    &scene_bind_group_layout,
+                    &atlas_bind_group_layout,
+                    &lighting.uniform_bind_group_layout,
+                ],
+                push_constant_ranges: &[],
+            });
 
         let vertex_buffers = [wgpu::VertexBufferLayout {
             array_stride: std::mem::size_of::<MeshVertex>() as wgpu::BufferAddress,
@@ -150,10 +169,21 @@ impl RenderPipelines {
         let color_pass_stencil = wgpu::DepthStencilState {
             format: wgpu::TextureFormat::Depth32Float,
             depth_write_enabled: true,
-            // Prepass already wrote these depths; Less rejects equal fragments.
             depth_compare: wgpu::CompareFunction::LessEqual,
             stencil: wgpu::StencilState::default(),
             bias: wgpu::DepthBiasState::default(),
+        };
+
+        let shadow_stencil = wgpu::DepthStencilState {
+            format: wgpu::TextureFormat::Depth32Float,
+            depth_write_enabled: true,
+            depth_compare: wgpu::CompareFunction::Less,
+            stencil: wgpu::StencilState::default(),
+            bias: wgpu::DepthBiasState {
+                constant: 2,
+                slope_scale: 2.0,
+                clamp: 0.0,
+            },
         };
 
         let depth = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
@@ -178,6 +208,28 @@ impl RenderPipelines {
             cache: None,
         });
 
+        let shadow = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("shadow_pipeline"),
+            layout: Some(&shadow_pipeline_layout),
+            vertex: wgpu::VertexState {
+                module: &shader,
+                entry_point: Some("vs_shadow"),
+                buffers: &vertex_buffers,
+                compilation_options: Default::default(),
+            },
+            fragment: Some(wgpu::FragmentState {
+                module: &shader,
+                entry_point: Some("fs_depth"),
+                targets: &[],
+                compilation_options: Default::default(),
+            }),
+            primitive,
+            depth_stencil: Some(shadow_stencil),
+            multisample: wgpu::MultisampleState::default(),
+            multiview: None,
+            cache: None,
+        });
+
         let opaque = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("opaque_pipeline"),
             layout: Some(&pipeline_layout),
@@ -191,7 +243,7 @@ impl RenderPipelines {
                 module: &shader,
                 entry_point: Some("fs_opaque"),
                 targets: &[Some(wgpu::ColorTargetState {
-                    format: surface_format,
+                    format: hdr_format,
                     blend: Some(wgpu::BlendState::REPLACE),
                     write_mask: wgpu::ColorWrites::ALL,
                 })],
@@ -217,7 +269,7 @@ impl RenderPipelines {
                 module: &shader,
                 entry_point: Some("fs_cutout"),
                 targets: &[Some(wgpu::ColorTargetState {
-                    format: surface_format,
+                    format: hdr_format,
                     blend: Some(wgpu::BlendState::REPLACE),
                     write_mask: wgpu::ColorWrites::ALL,
                 })],
@@ -237,10 +289,6 @@ impl RenderPipelines {
             mapped_at_creation: false,
         });
 
-        let (colormap_min, colormap_max) = colormap_rect
-            .map(|rect| (rect.min, rect.max))
-            .unwrap_or(([0.0, 0.0], [0.0, 0.0]));
-
         let scene_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("scene_bind_group"),
             layout: &scene_bind_group_layout,
@@ -253,8 +301,6 @@ impl RenderPipelines {
         let (atlas_texture, atlas_bind_group) =
             create_atlas_gpu(device, queue, &atlas_bind_group_layout, atlas);
 
-        let _ = (colormap_min, colormap_max);
-
         let outline = OutlinePipeline::new(device, surface_format, &scene_bind_group_layout);
         let mining_overlay = MiningOverlayPipeline::new(
             device,
@@ -262,11 +308,14 @@ impl RenderPipelines {
             surface_format,
             &scene_bind_group_layout,
             &atlas_bind_group_layout,
+            &lighting.uniform_bind_group_layout,
+            &lighting.shadow_bind_group_layout,
             destroy_atlas,
         );
 
         Self {
             depth,
+            shadow,
             opaque,
             cutout,
             outline,

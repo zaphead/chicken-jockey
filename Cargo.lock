@@ -564,6 +564,7 @@ dependencies = [
  "engine-core",
  "engine-world",
  "image",
+ "log",
  "serde",
  "serde_json",
  "tempfile",

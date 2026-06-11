@@ -1,8 +1,8 @@
-# Chicken Jockey
+# OpenCraft
 
 An open-source, high-fantasy voxel sandbox built from the ground up in Rust. Explore procedurally generated worlds, reshape the terrain block by block, and ride chickens across the hills — with an engine designed for performance, moddability, and multiplayer from day one.
 
-Chicken Jockey exists because popular voxel games have outgrown their original architectures. Modding is bolted on, draw distance fights the renderer, and multiplayer authority is an afterthought. This project treats those problems as first-class design constraints: a sparse voxel octree (SVO) for scalable worlds, a strict entity–component–system (ECS) architecture for parallel gameplay, and a shared client/server codebase so the same logic runs headless on a server or in a window.
+OpenCraft exists because popular voxel games have outgrown their original architectures. Modding is bolted on, draw distance fights the renderer, and multiplayer authority is an afterthought. This project treats those problems as first-class design constraints: a sparse voxel octree (SVO) for scalable worlds, a strict entity–component–system (ECS) architecture for parallel gameplay, and a shared client/server codebase so the same logic runs headless on a server or in a window.
 
 ---
 
@@ -48,7 +48,7 @@ cargo run -p client
 cargo run -p server
 
 # Client connected to server
-CJ_SERVER=127.0.0.1:4242 cargo run -p client
+OC_SERVER=127.0.0.1:4242 cargo run -p client
 ```
 
 Click the window to capture the mouse. **WASD** moves on the horizontal plane, **Space / Ctrl** moves up and down, mouse looks around.

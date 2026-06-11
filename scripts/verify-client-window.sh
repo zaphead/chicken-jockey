@@ -3,8 +3,8 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-LOG="/tmp/verify-chicken-jockey-client.log"
-VERDICT="/tmp/verify-chicken-jockey-verdict.txt"
+LOG="/tmp/verify-opencraft-client.log"
+VERDICT="/tmp/verify-opencraft-verdict.txt"
 TIMEOUT_SEC=15
 
 cd "$ROOT"
@@ -61,7 +61,7 @@ print("\(best.title)|\(best.width)|\(best.height)|\(best.onScreen)")
 IFS='|' read -r window_title window_width window_height on_screen <<<"$probe"
 
 {
-  echo "claim=Client shows visible Chicken Jockey window within ${TIMEOUT_SEC}s"
+  echo "claim=Client shows visible OpenCraft window within ${TIMEOUT_SEC}s"
   echo "pid=$PID"
   echo "renderer_ready=$renderer_ready"
   echo "window_title=$window_title"

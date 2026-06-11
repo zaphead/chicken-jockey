@@ -21,7 +21,7 @@ fn main() {
         if frame == 1 || frame % 60 == 0 || frame == 300 {
             let mut diag = ClientDiagnostics::sample(&app, false, last_mesh_count);
             diag.frame = frame as u64;
-            log::info!("cj diag: {}", diag.log_line());
+            log::info!("oc diag: {}", diag.log_line());
         }
     }
 

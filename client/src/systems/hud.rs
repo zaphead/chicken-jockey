@@ -1,5 +1,5 @@
 use engine_render::Camera;
-use game::{DebugWorldKind, PlayMode};
+use game::{format_time_of_day, DebugWorldKind, PlayMode};
 use glam::{Vec2, Vec3};
 
 pub fn format_debug_hud(
@@ -8,6 +8,7 @@ pub fn format_debug_hud(
     world: Option<DebugWorldKind>,
     velocity: Vec3,
     tool_label: &str,
+    world_time: f32,
 ) -> String {
     let mode_line = mode.map(PlayMode::label).unwrap_or("");
     let world_line = world.map(DebugWorldKind::label).unwrap_or("");
@@ -18,9 +19,12 @@ pub fn format_debug_hud(
     let speed = velocity.length();
     let horiz_speed = Vec2::new(velocity.x, velocity.y).length();
 
+    let time_line = format_time_of_day(world_time);
+
     format!(
         "{mode_line}\n\
          {world_line}\n\
+         {time_line}\n\
          TOOL {tool_label}\n\
          POS\n\
          X {:>7.1}\n\

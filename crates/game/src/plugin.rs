@@ -1,13 +1,15 @@
 use engine_core::{App, Stage};
 
 use crate::systems::{
-    block_interaction_system, block_mining_system, flush_world_mutations_system,
-    generate_terrain_system, held_tool_select_system, player_look_system,
-    player_locomotion_system, spawn_local_player_system, spawn_network_player_system,
+    block_interaction_system, block_mining_system, day_night_system,
+    flush_world_mutations_system, generate_terrain_system, held_tool_select_system,
+    player_look_system, player_locomotion_system, spawn_local_player_system,
+    spawn_network_player_system,
 };
 
 pub fn register_world_systems(app: &mut App) {
     app.add_system(Stage::Update, generate_terrain_system);
+    app.add_system(Stage::Update, day_night_system);
     app.add_system(Stage::PostUpdate, flush_world_mutations_system);
 }
 

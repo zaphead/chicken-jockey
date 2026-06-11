@@ -9,7 +9,7 @@ use crate::ctm::neighbor_mask_for_face;
 use crate::extract::MiningOverlay;
 use crate::mesh::{append_face, tint_index_for, MeshBuckets, SolidMesh};
 
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Clone)]
 pub struct RenderScene {
     pub camera: crate::camera::Camera,
     pub opaque: SolidMesh,
@@ -18,6 +18,22 @@ pub struct RenderScene {
     pub entity_meshes: Vec<(glam::Vec3, SolidMesh)>,
     pub target_block: Option<BlockPos>,
     pub mining_overlay: Option<MiningOverlay>,
+    pub lighting: crate::lighting::LightingSnapshot,
+}
+
+impl Default for RenderScene {
+    fn default() -> Self {
+        Self {
+            camera: crate::camera::Camera::default(),
+            opaque: SolidMesh::default(),
+            cutout: SolidMesh::default(),
+            animation_tick: 0,
+            entity_meshes: Vec::new(),
+            target_block: None,
+            mining_overlay: None,
+            lighting: crate::lighting::LightingSnapshot::default(),
+        }
+    }
 }
 
 pub const MAX_CHUNK_REBUILDS_PER_FRAME: usize = 8;
@@ -257,6 +273,7 @@ pub fn extract_render_scene(
     entity_meshes: Vec<(glam::Vec3, SolidMesh)>,
     target_block: Option<BlockPos>,
     mining_overlay: Option<MiningOverlay>,
+    lighting: crate::lighting::LightingSnapshot,
 ) -> RenderScene {
     RenderScene {
         camera,
@@ -266,6 +283,7 @@ pub fn extract_render_scene(
         entity_meshes,
         target_block,
         mining_overlay,
+        lighting,
     }
 }
 

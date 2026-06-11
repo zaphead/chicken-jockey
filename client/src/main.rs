@@ -2,7 +2,9 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use engine_assets::{load_destroy_stage_atlas, mining_textures_dir, ResolvedBlockMaterials};
+use engine_assets::{
+    load_destroy_stage_atlas, mining_textures_dir, EnvironmentTextures, ResolvedBlockMaterials,
+};
 use engine_core::{App, Time, SIM_DT};
 use engine_input::{apply_mouse_motion, apply_winit_event, InputState};
 use engine_net::NetClient;
@@ -43,7 +45,7 @@ impl ClientApp {
         bootstrap_client_shell(&mut ecs);
         bootstrap_client_resources(&mut ecs, env!("CARGO_MANIFEST_DIR"));
 
-        if let Some(addr) = std::env::var("CJ_SERVER")
+        if let Some(addr) = std::env::var("OC_SERVER")
             .ok()
             .and_then(|value| value.parse::<SocketAddr>().ok())
         {
@@ -64,7 +66,7 @@ impl ClientApp {
             last_frame: Instant::now(),
             window_centered: false,
             frame: 0,
-            diagnostic_mode: std::env::var("CJ_DIAGNOSTIC").is_ok(),
+            diagnostic_mode: std::env::var("OC_DIAGNOSTIC").is_ok(),
         }
     }
 
@@ -93,7 +95,7 @@ impl ClientApp {
                 presented,
             );
             diag.frame = self.frame;
-            log::info!("cj diag: {}", diag.log_line());
+            log::info!("oc diag: {}", diag.log_line());
         }
 
         event_loop.set_control_flow(winit::event_loop::ControlFlow::WaitUntil(
@@ -115,7 +117,14 @@ impl ClientApp {
         };
         let destroy_atlas =
             load_destroy_stage_atlas(&mining_textures_dir(env!("CARGO_MANIFEST_DIR")));
-        let renderer = Renderer::new(window, &materials, &destroy_atlas);
+        let environment = self
+            .ecs
+            .resource::<Arc<EnvironmentTextures>>()
+            .cloned()
+            .unwrap_or_else(|| Arc::new(engine_assets::load_environment_textures(
+                env!("CARGO_MANIFEST_DIR"),
+            )));
+        let renderer = Renderer::new(window, &materials, &destroy_atlas, &environment);
         self.ecs.insert_resource(ClientRenderer(renderer));
         if let Some(info) = self.ecs.resource_mut::<RenderSurfaceInfo>() {
             info.aspect = size.width as f32 / size.height.max(1) as f32;
@@ -261,7 +270,7 @@ fn center_window_on_monitor(window: &Window) {
 
 fn window_attributes() -> WindowAttributes {
     Window::default_attributes()
-        .with_title("Chicken Jockey")
+        .with_title("OpenCraft")
         .with_inner_size(PhysicalSize::new(1280, 720))
         .with_min_inner_size(PhysicalSize::new(640, 480))
         .with_visible(true)

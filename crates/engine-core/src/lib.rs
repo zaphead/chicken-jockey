@@ -1,4 +1,4 @@
-//! ECS scheduler, resources, commands, events, and time for Chicken Jockey.
+//! ECS scheduler, resources, commands, events, and time for OpenCraft.
 
 mod app;
 mod commands;

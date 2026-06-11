@@ -12,6 +12,7 @@ crossbeam-channel = { workspace = true }
 image = { version = "0.25", default-features = false, features = ["png"] }
 serde_json = { workspace = true }
 zip = { workspace = true }
+log = { workspace = true }
 
 [dev-dependencies]
 tempfile = "3"

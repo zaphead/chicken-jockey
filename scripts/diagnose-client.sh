@@ -3,14 +3,14 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-REPORT="${CJ_DIAGNOSE_REPORT:-/tmp/chicken-jockey-diagnose.txt}"
-LOG="${CJ_CLIENT_LOG:-/tmp/chicken-jockey-client-run.log}"
+REPORT="${OC_DIAGNOSE_REPORT:-/tmp/opencraft-diagnose.txt}"
+LOG="${OC_CLIENT_LOG:-/tmp/opencraft-client-run.log}"
 
 cd "$ROOT"
 source "$HOME/.cargo/env" 2>/dev/null || true
 
 {
-  echo "=== Chicken Jockey client diagnose ==="
+  echo "=== OpenCraft client diagnose ==="
   echo "time: $(date -u +"%Y-%m-%dT%H:%M:%SZ")"
   echo
 
@@ -30,16 +30,16 @@ source "$HOME/.cargo/env" 2>/dev/null || true
   fi
   echo
 
-  echo "--- live client sample (15s, CJ_DIAGNOSTIC=1) ---"
+  echo "--- live client sample (15s, OC_DIAGNOSTIC=1) ---"
   cargo build -p client -q
   : >"$LOG"
-  RUST_LOG=info CJ_DIAGNOSTIC=1 cargo run -p client --bin client >>"$LOG" 2>&1 &
+  RUST_LOG=info OC_DIAGNOSTIC=1 cargo run -p client --bin client >>"$LOG" 2>&1 &
   PID=$!
   sleep 15
   kill "$PID" 2>/dev/null || true
   wait "$PID" 2>/dev/null || true
   echo "client log: $LOG"
-  grep "cj diag:" "$LOG" | tail -20 || echo "(no diagnostic lines)"
+  grep "oc diag:" "$LOG" | tail -20 || echo "(no diagnostic lines)"
   if grep -q "vertices=[1-9]" "$LOG" || grep -q "vertices=[0-9][0-9]" "$LOG"; then
     echo "live_sample: meshes reported in log"
   else

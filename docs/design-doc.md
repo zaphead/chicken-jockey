@@ -153,12 +153,18 @@ Once per frame, at the `Extract` stage, the main thread snapshots all renderable
 The render thread executes these stages each frame, in order:
 
 1. **Prepare** — Upload extracted data to GPU (vertex buffers, uniform buffers, texture updates from the asset system).
-2. **Depth Prepass** — Render scene depth only. Enables early-z rejection for opaque geometry.
-3. **Opaque Geometry** — Render fully opaque voxel meshes.
-4. **Cutout Geometry** — Alpha-tested meshes (leaves, flora) with depth write.
-5. **Transparent Geometry** — Render alpha-blended geometry, sorted back-to-front.
-6. **Post-Processing** — Screen-space effects (ambient occlusion, bloom, tone mapping).
-7. **UI** — Rendered last, on top of everything, in screen space.
+2. **Sky** — Procedural gradient sky with sun/moon billboards and stars to the HDR offscreen target; clears color and depth.
+3. **Shadow Map** — Directional depth pass from the sun (4096² orthographic frustum) for PCF shadow sampling.
+4. **Depth Prepass** — Render scene depth only. Enables early-z rejection for opaque geometry.
+5. **Opaque Geometry** — Lit opaque voxel meshes (sun/moon diffuse, specular, shadow map) to the HDR offscreen target.
+6. **Cutout Geometry** — Alpha-tested meshes (leaves, flora) with the same lighting model.
+7. **Post-Processing** — SSAO, distance fog, ACES tone mapping for terrain; sky pixels tone-mapped without fog; composite HDR to the swapchain.
+8. **Overlays** — Block outline, mining crack overlay (lit).
+9. **UI** — Rendered last, on top of everything, in screen space.
+
+**Day/night:** `DayNightCycle` lives in `game` as a resource (MC 24000-tick cycle). The client extracts a `LightingSnapshot` into `RenderWorld` each frame. The renderer never reads game ECS directly.
+
+**Lighting model (current):** directional sun + moon, ambient, Blinn-Phong specular, single-cascade shadow map. Block/torch light via SVO flood-fill is future work (SVO remains the intended query source per §4.1).
 
 All rendering is done through `wgpu`. No platform-specific graphics API calls appear outside of `engine-render`. Pipeline state objects are created at startup and reused — avoid creating pipelines at runtime.
 

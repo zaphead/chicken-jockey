@@ -15,9 +15,9 @@ var block_atlas: texture_2d<f32>;
 @group(1) @binding(1)
 var block_sampler: sampler;
 
-@group(2) @binding(0)
+@group(4) @binding(0)
 var destroy_tex: texture_2d<f32>;
-@group(2) @binding(1)
+@group(4) @binding(1)
 var destroy_sampler: sampler;
 
 struct VertexInput {
@@ -40,6 +40,7 @@ struct VertexOutput {
     @location(4) tint_index: u32,
     @location(5) flags: u32,
     @location(6) anim_packed: u32,
+    @location(7) world_position: vec3<f32>,
 };
 
 @vertex
@@ -53,6 +54,7 @@ fn vs_main(input: VertexInput) -> VertexOutput {
     out.tint_index = input.tint_index;
     out.flags = input.flags;
     out.anim_packed = input.anim_packed;
+    out.world_position = input.position;
     return out;
 }
 
@@ -93,12 +95,6 @@ fn sample_block_face(input: VertexOutput) -> vec3<f32> {
     return albedo.rgb;
 }
 
-fn shade_lit(rgb: vec3<f32>, normal: vec3<f32>) -> vec3<f32> {
-    let light = normalize(vec3<f32>(0.4, 1.0, 0.3));
-    let shade = 0.35 + 0.65 * max(dot(normalize(normal), light), 0.0);
-    return rgb * shade;
-}
-
 @fragment
 fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
     let mask = textureSample(destroy_tex, destroy_sampler, input.mask_uv).a;
@@ -106,7 +102,7 @@ fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
         discard;
     }
 
-    let block_rgb = shade_lit(sample_block_face(input), input.normal);
+    let block_rgb = shade_lit(sample_block_face(input), input.normal, input.world_position);
     let darken = mix(1.0, 0.25, mask);
     return vec4<f32>(block_rgb * darken, mask * 0.75);
 }

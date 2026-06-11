@@ -1,8 +1,10 @@
 struct SceneUniform {
     view_proj: mat4x4<f32>,
     animation_tick: u32,
+    _align_colormap: u32,
     colormap_min: vec2<f32>,
     colormap_max: vec2<f32>,
+    _struct_pad: vec2<u32>,
 };
 
 @group(0) @binding(0)
@@ -10,7 +12,6 @@ var<uniform> scene: SceneUniform;
 
 @group(1) @binding(0)
 var block_atlas: texture_2d<f32>;
-
 @group(1) @binding(1)
 var block_sampler: sampler;
 
@@ -32,6 +33,7 @@ struct VertexOutput {
     @location(3) tint_index: u32,
     @location(4) flags: u32,
     @location(5) anim_packed: u32,
+    @location(6) world_position: vec3<f32>,
 };
 
 @vertex
@@ -44,6 +46,21 @@ fn vs_main(input: VertexInput) -> VertexOutput {
     out.tint_index = input.tint_index;
     out.flags = input.flags;
     out.anim_packed = input.anim_packed;
+    out.world_position = input.position;
+    return out;
+}
+
+@vertex
+fn vs_shadow(input: VertexInput) -> VertexOutput {
+    var out: VertexOutput;
+    out.clip_position = lighting.light_view_proj * vec4<f32>(input.position, 1.0);
+    out.uv = input.uv;
+    out.uv2 = input.uv2;
+    out.normal = input.normal;
+    out.tint_index = input.tint_index;
+    out.flags = input.flags;
+    out.anim_packed = input.anim_packed;
+    out.world_position = input.position;
     return out;
 }
 
@@ -71,12 +88,6 @@ fn apply_tint(rgb: vec3<f32>, tint_index: u32) -> vec3<f32> {
     return rgb * tint;
 }
 
-fn shade_lit(rgb: vec3<f32>, normal: vec3<f32>) -> vec3<f32> {
-    let light = normalize(vec3<f32>(0.4, 1.0, 0.3));
-    let shade = 0.35 + 0.65 * max(dot(normalize(normal), light), 0.0);
-    return rgb * shade;
-}
-
 @fragment
 fn fs_opaque(input: VertexOutput) -> @location(0) vec4<f32> {
     let base = sample_albedo(input.uv, input.anim_packed);
@@ -88,7 +99,7 @@ fn fs_opaque(input: VertexOutput) -> @location(0) vec4<f32> {
     } else {
         albedo = vec4<f32>(apply_tint(base.rgb, input.tint_index), base.a);
     }
-    return vec4<f32>(shade_lit(albedo.rgb, input.normal), 1.0);
+    return vec4<f32>(shade_lit(albedo.rgb, input.normal, input.world_position), 1.0);
 }
 
 @fragment
@@ -105,7 +116,7 @@ fn fs_cutout(input: VertexOutput) -> @location(0) vec4<f32> {
     if albedo.a < 0.5 {
         discard;
     }
-    return vec4<f32>(shade_lit(albedo.rgb, input.normal), 1.0);
+    return vec4<f32>(shade_lit(albedo.rgb, input.normal, input.world_position), 1.0);
 }
 
 @fragment

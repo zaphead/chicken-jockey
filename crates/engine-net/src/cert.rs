@@ -13,7 +13,7 @@ pub fn server_config() -> ServerConfig {
         .with_no_client_auth()
         .with_single_cert(vec![cert], key)
         .expect("server tls config");
-    crypto.alpn_protocols = vec![b"chicken-jockey".to_vec()];
+    crypto.alpn_protocols = vec![b"opencraft".to_vec()];
     ServerConfig::with_crypto(Arc::new(
         quinn::crypto::rustls::QuicServerConfig::try_from(crypto).expect("quic server crypto"),
     ))
@@ -24,7 +24,7 @@ pub fn client_config() -> ClientConfig {
         .dangerous()
         .with_custom_certificate_verifier(Arc::new(SkipServerVerification))
         .with_no_client_auth();
-    crypto.alpn_protocols = vec![b"chicken-jockey".to_vec()];
+    crypto.alpn_protocols = vec![b"opencraft".to_vec()];
     ClientConfig::new(Arc::new(
         quinn::crypto::rustls::QuicClientConfig::try_from(crypto).expect("quic client crypto"),
     ))
@@ -36,7 +36,7 @@ fn self_signed_cert() -> (CertificateDer<'static>, PrivateKeyDer<'static>) {
     params.distinguished_name = DistinguishedName::new();
     params
         .distinguished_name
-        .push(DnType::CommonName, "Chicken Jockey Dev");
+        .push(DnType::CommonName, "OpenCraft Dev");
     let cert = params.self_signed(&key_pair).expect("self signed cert");
     let cert_der = CertificateDer::from(cert.der().to_vec());
     let key_der = PrivateKeyDer::Pkcs8(key_pair.serialized_der().to_vec().into());

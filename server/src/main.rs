@@ -10,7 +10,7 @@ use engine_core::{App, Time, SIM_DT, SIM_HZ};
 use engine_net::NetServer;
 use engine_world::{SparseVoxelOctree, WorldMutationQueue};
 use game::{
-    register_server_systems, AuthoritativeServer, PlayerInputs, TerrainGeneration,
+    register_server_systems, AuthoritativeServer, DayNightCycle, PlayerInputs, TerrainGeneration,
     WorldInitialized, WorldSeed,
 };
 use systems::{register_server_schedule, ServerNet};
@@ -27,6 +27,7 @@ fn main() {
     app.insert_resource(WorldInitialized::default());
     app.insert_resource(TerrainGeneration::default());
     app.insert_resource(WorldSeed::random());
+    app.insert_resource(DayNightCycle::default());
 
     let manifest_dir = env!("CARGO_MANIFEST_DIR");
     let blocks_path = blocks_asset_path(manifest_dir);
@@ -44,10 +45,10 @@ fn main() {
     let addr = NetServer::default_addr();
     let net = NetServer::bind(addr);
     app.insert_resource(ServerNet(net));
-    log::info!("Chicken Jockey server listening on {addr}");
+    log::info!("OpenCraft server listening on {addr}");
 
     let tick_duration = Duration::from_secs_f32(SIM_DT);
-    log::info!("Chicken Jockey server sim rate: {SIM_HZ} Hz");
+    log::info!("OpenCraft server sim rate: {SIM_HZ} Hz");
     loop {
         let frame_start = Instant::now();
 

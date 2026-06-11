@@ -130,6 +130,8 @@ impl MiningOverlayPipeline {
         surface_format: wgpu::TextureFormat,
         scene_bind_group_layout: &wgpu::BindGroupLayout,
         block_atlas_bind_group_layout: &wgpu::BindGroupLayout,
+        lighting_uniform_layout: &wgpu::BindGroupLayout,
+        shadow_bind_group_layout: &wgpu::BindGroupLayout,
         destroy_atlas: &TextureAtlas,
     ) -> Self {
         let destroy_bind_group_layout =
@@ -214,7 +216,7 @@ impl MiningOverlayPipeline {
 
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("mining_overlay_shader"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("mining_overlay.wgsl").into()),
+            source: crate::shader_source::mining_overlay_shader_source(),
         });
 
         let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
@@ -222,6 +224,8 @@ impl MiningOverlayPipeline {
             bind_group_layouts: &[
                 scene_bind_group_layout,
                 block_atlas_bind_group_layout,
+                lighting_uniform_layout,
+                shadow_bind_group_layout,
                 &destroy_bind_group_layout,
             ],
             push_constant_ranges: &[],
@@ -359,6 +363,8 @@ impl MiningOverlayPipeline {
         pass: &mut wgpu::RenderPass<'a>,
         scene_bind_group: &'a wgpu::BindGroup,
         block_atlas_bind_group: &'a wgpu::BindGroup,
+        lighting_uniform_bind_group: &'a wgpu::BindGroup,
+        shadow_bind_group: &'a wgpu::BindGroup,
     ) {
         if self.index_count == 0 {
             return;
@@ -366,7 +372,9 @@ impl MiningOverlayPipeline {
         pass.set_pipeline(&self.pipeline);
         pass.set_bind_group(0, scene_bind_group, &[]);
         pass.set_bind_group(1, block_atlas_bind_group, &[]);
-        pass.set_bind_group(2, &self.destroy_bind_group, &[]);
+        pass.set_bind_group(2, lighting_uniform_bind_group, &[]);
+        pass.set_bind_group(3, shadow_bind_group, &[]);
+        pass.set_bind_group(4, &self.destroy_bind_group, &[]);
         pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
         pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
         pass.draw_indexed(0..self.index_count, 0, 0..1);

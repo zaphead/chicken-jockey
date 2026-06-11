@@ -3,16 +3,17 @@ use std::sync::Arc;
 use engine_assets::{BlockRegistry, ResolvedBlockMaterials};
 use engine_core::{SystemContext, Time};
 use engine_render::{
-    build_mining_overlay_mesh, Camera, MiningOverlay, RenderExtractState, RenderSurfaceInfo,
-    RenderWorld,
+    build_mining_overlay_mesh, Camera, MiningOverlay, RenderExtractState,
+    RenderSurfaceInfo, RenderWorld,
 };
 use engine_world::{BiomeMap, SparseVoxelOctree, VoxelChanged};
 use game::{
-    destroy_stage, local_player_entity, raycast_voxel, ActiveDebugWorld, ActivePlayMode,
-    BlockMiningState, DebugWorldKind, DisplayedPlayerView, PlayMode, Transform, WorldInitialized,
-    BLOCK_REACH, PLAYER_EYE_OFFSET_Z,
+    build_lighting_snapshot, destroy_stage, local_player_entity, raycast_voxel, ActiveDebugWorld,
+    ActivePlayMode, BlockMiningState, DayNightCycle, DebugWorldKind, DisplayedPlayerView, PlayMode,
+    Transform, WorldInitialized, BLOCK_REACH, PLAYER_EYE_OFFSET_Z,
 };
 
+use crate::lighting::render_lighting;
 use crate::mesh_pipeline::{bootstrap_terrain_meshes, rebuild_budget_for_extract, rebuild_chunk_meshes};
 use crate::systems::interpolation::{
     lerp_transform_snapshot, PreviousPlayerTransform, TransformSnapshot,
@@ -152,6 +153,12 @@ pub fn extract_render_world_system(ctx: &mut SystemContext<'_>) {
         _ => None,
     };
 
+    let lighting = ctx
+        .resources
+        .get::<DayNightCycle>()
+        .map(|cycle| render_lighting(build_lighting_snapshot(cycle.world_time)))
+        .unwrap_or_default();
+
     if let Some(render_world) = ctx.resources.get_mut::<RenderWorld>() {
         render_world.camera = camera;
         if let Some((opaque, cutout)) = mesh_update {
@@ -160,6 +167,7 @@ pub fn extract_render_world_system(ctx: &mut SystemContext<'_>) {
             render_world.mesh_generation = generation;
         }
         render_world.animation_tick = animation_tick;
+        render_world.lighting = lighting;
         render_world.target_block = target_block;
         render_world.mining_overlay = mining_overlay;
         render_world.ready = true;

@@ -35,8 +35,14 @@ pub fn present_frame_system(ctx: &mut SystemContext<'_>) {
                 return false;
             }
 
-            let hud_text =
-                format_debug_hud(&world.camera, play_mode, debug_world, velocity, &tool_label);
+            let hud_text = format_debug_hud(
+                &world.camera,
+                play_mode,
+                debug_world,
+                velocity,
+                &tool_label,
+                world.lighting.world_time,
+            );
             renderer.0.sync_meshes(
                 world.mesh_generation,
                 &world.opaque,
@@ -50,6 +56,7 @@ pub fn present_frame_system(ctx: &mut SystemContext<'_>) {
                 Vec::new(),
                 world.target_block,
                 world.mining_overlay.clone(),
+                world.lighting,
             );
             if let Err(error) = renderer.0.render(&scene, Some(&hud_text)) {
                 log::warn!("render error: {error:?}");

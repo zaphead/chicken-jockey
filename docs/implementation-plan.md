@@ -1,4 +1,4 @@
-# Chicken Jockey — Implementation Plan
+# OpenCraft — Implementation Plan
 
 **Status:** Living Document
 
@@ -88,6 +88,7 @@ flowchart TB
 | 17    | Architecture debt closure    | Complete | `RenderWorld` extract boundary; dead `RenderThread` removed; design-doc dependency graph enforced                                  |
 | 18    | MC-parity material engine    | Complete | M0–M7 per [`material-engine.md`](./material-engine.md) |
 | 19    | Texture pack importer        | Complete | `import-texture-pack` CLI + [`assets/import/manifest.toml`](../assets/import/manifest.toml) |
+| 20    | Lighting & atmosphere        | Complete | 60s day/night, unified HDR sky+terrain post, 4096 shadow map, shared lighting WGSL, Whimscape sun/moon |
 
 Update the **Status** column as work completes. Add dated notes under [Progress log](#progress-log).
 
@@ -152,7 +153,7 @@ Wire `client` binary:
 
 **Deliverables**
 
-- Window titled "Chicken Jockey".
+- Window titled "OpenCraft".
 - Stable 60 FPS clear-color frame (no voxels yet).
 
 **Done when:** Clean shutdown on window close; no wgpu validation errors.
@@ -365,7 +366,7 @@ Full client–server model per design doc §7:
 - **Phase 10:** `server` runs persistent 60 Hz tick loop with authoritative `game` systems.
 - **Phase 11:** Rayon-parallel chunk mesh rebuild, camera-distance LOD culling, `extract_render_scene` snapshot before draw. Dedicated render thread + GPU compute meshing remain future work (macOS requires main-thread surface).
 - **Phase 12:** `engine-net` QUIC (`quinn`) + bincode protocol; server broadcasts `BlockDeltas` and `EntitySnapshots`; client reconciles with prediction stub.
-- **Multiplayer:** `cargo run -p server` then `CJ_SERVER=127.0.0.1:4242 cargo run -p client`.
+- **Multiplayer:** `cargo run -p server` then `OC_SERVER=127.0.0.1:4242 cargo run -p client`.
 
 ### 2026-06-10 — MC-parity material engine (Phase 18)
 
@@ -398,6 +399,14 @@ Full client–server model per design doc §7:
 - `block_mining_system`: MC-faithful progress at 60 Hz; hand + pickaxe only (pickaxe mines dirt/grass/stone/leaves).
 - Whimscape `destroy_stage_0–9` crack overlay on mined face; wireframe outline hidden while mining.
 - Keys **1–9** select held-tool slot; debug HUD shows active tool.
+
+### 2026-06-10 — Lighting & atmosphere (Phase 20)
+
+- `DayNightCycle` in `game` (60s / 24000-tick MC cycle); `day_night_system` on client + server.
+- Whimscape sun + 8-phase moon strip, `sky0`/`fog0` colormaps in `assets/textures/environment/`.
+- Render passes: sky (HDR) → 4096² shadow map → depth prepass → lit opaque/cutout (HDR) → SSAO/fog/ACES post → overlays/HUD.
+- Shared `lighting_shared.wgsl` for voxel + mining overlay; CPU-only night darkness in `build_lighting_snapshot`.
+- Client `render_lighting()` converts `game::LightingSnapshot` → `engine_render::LightingSnapshot`.
 
 ### 2026-06-10 — Design-doc hardening (Phases 13–17)
 

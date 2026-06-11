@@ -2,6 +2,7 @@
 
 mod axes;
 mod components;
+pub mod day_night;
 mod debug_world;
 mod events;
 mod input;
@@ -27,6 +28,9 @@ pub use mode::{AuthoritativeServer, NetworkClient};
 pub use movement::{
     accelerate_toward, apply_ice_drag, apply_look_delta, max_fly_speed, wish_direction_fly,
     wish_direction_horizontal, MOUSE_SENSITIVITY,
+};
+pub use day_night::{
+    build_lighting_snapshot, format_time_of_day, time_of_day_label, DayNightCycle, LightingSnapshot,
 };
 pub use debug_world::{iter_mesh_chunks, ActiveDebugWorld, DebugWorldKind};
 pub use play_mode::{ActivePlayMode, PlayMode};

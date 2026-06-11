@@ -1,4 +1,4 @@
-# Chicken Jockey — Agent Instructions
+# OpenCraft — Agent Instructions
 
 ## Read before code
 
@@ -158,9 +158,9 @@ When in doubt, ask: *can the server run this headlessly?* If yes, it belongs in 
 Before guessing about blue screens or missing terrain, run automated checks:
 
 ```bash
-bash scripts/diagnose-client.sh          # headless + live log sample → /tmp/chicken-jockey-diagnose.txt
+bash scripts/diagnose-client.sh          # headless + live log sample → /tmp/opencraft-diagnose.txt
 cargo run --bin client-diagnose          # quick headless pipeline only (exit 0 = DIAGNOSE_OK)
 cargo test -p client headless_pipeline   # integration test
 ```
 
-Live client logs (`CJ_DIAGNOSTIC=1 RUST_LOG=info cargo run --bin client`) emit `cj diag:` lines each second with registry, terrain, mesh, and vertex counts. **GPU encoding must run on the main thread on macOS** — do not submit wgpu command buffers from a background render thread.
+Live client logs (`OC_DIAGNOSTIC=1 RUST_LOG=info cargo run --bin client`) emit `oc diag:` lines each second with registry, terrain, mesh, and vertex counts. **GPU encoding must run on the main thread on macOS** — do not submit wgpu command buffers from a background render thread.

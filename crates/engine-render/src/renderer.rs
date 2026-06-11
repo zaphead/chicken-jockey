@@ -1,13 +1,17 @@
 use std::sync::Arc;
 
-use engine_assets::{ResolvedBlockMaterials, UvRect};
+use engine_assets::{EnvironmentTextures, ResolvedBlockMaterials, UvRect};
 use wgpu::SurfaceError;
 use winit::dpi::PhysicalSize;
 use winit::window::Window;
 
 use crate::hud::HudPipeline;
+use crate::lighting::{compute_light_view_proj, LightingResources};
+use crate::render_passes;
+use crate::sky::SkyPipeline;
 use crate::mesh::SolidMesh;
 use crate::pipeline::{GpuMesh, RenderPipelines};
+use crate::post::{PostGpuUniform, PostPipeline};
 use crate::world_mesh::RenderScene;
 
 pub struct Renderer {
@@ -19,6 +23,9 @@ pub struct Renderer {
     depth_texture: wgpu::Texture,
     depth_view: wgpu::TextureView,
     pipelines: RenderPipelines,
+    lighting: LightingResources,
+    sky: SkyPipeline,
+    post: PostPipeline,
     colormap_rect: Option<UvRect>,
     opaque_meshes: Vec<GpuMesh>,
     cutout_meshes: Vec<GpuMesh>,
@@ -31,6 +38,7 @@ impl Renderer {
         window: Arc<Window>,
         materials: &ResolvedBlockMaterials,
         destroy_atlas: &engine_assets::TextureAtlas,
+        environment: &EnvironmentTextures,
     ) -> Self {
         let size = window.inner_size();
         let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
@@ -48,11 +56,13 @@ impl Renderer {
             .find(|adapter| adapter.is_surface_supported(&surface))
             .expect("compatible adapter");
 
+        let mut limits = wgpu::Limits::default();
+        limits.max_bind_groups = 5;
         let (device, queue) = pollster::block_on(adapter.request_device(
             &wgpu::DeviceDescriptor {
                 label: Some("device"),
                 required_features: wgpu::Features::empty(),
-                required_limits: wgpu::Limits::default(),
+                required_limits: limits,
                 memory_hints: Default::default(),
             },
             None,
@@ -82,14 +92,22 @@ impl Renderer {
         let (depth_texture, depth_view) =
             create_depth_texture(&device, config.width, config.height);
 
+        let hdr_format = wgpu::TextureFormat::Rgba16Float;
         let colormap_rect = materials.colormap_atlas_rect;
+        let lighting = LightingResources::new(&device, &queue, environment);
+        let mut post = PostPipeline::new(&device, surface_format, config.width, config.height);
+        let sky = SkyPipeline::new(&device, hdr_format, &lighting.env_bind_group_layout);
+        post.recreate_bind_group(&device, &depth_view);
+
         let pipelines = RenderPipelines::new(
             &device,
             &queue,
+            hdr_format,
             surface_format,
             &materials.atlas,
             destroy_atlas,
             colormap_rect,
+            &lighting,
         );
 
         let hud = HudPipeline::new(&device, surface_format);
@@ -103,6 +121,9 @@ impl Renderer {
             depth_texture,
             depth_view,
             pipelines,
+            lighting,
+            sky,
+            post,
             colormap_rect,
             opaque_meshes: Vec::new(),
             cutout_meshes: Vec::new(),
@@ -122,6 +143,8 @@ impl Renderer {
             create_depth_texture(&self.device, size.width, size.height);
         self.depth_texture = depth_texture;
         self.depth_view = depth_view;
+        self.post.resize(&self.device, size.width, size.height);
+        self.post.recreate_bind_group(&self.device, &self.depth_view);
     }
 
     pub fn aspect(&self) -> f32 {
@@ -151,23 +174,58 @@ impl Renderer {
     }
 
     pub fn render(&mut self, scene: &RenderScene, hud_label: Option<&str>) -> Result<(), SurfaceError> {
+        let lighting = scene.lighting;
+        let camera = scene.camera;
+        let view_proj = camera.view_projection();
+        let inv_view_proj = view_proj.inverse();
+        let light_view_proj = compute_light_view_proj(lighting.sun_dir, camera.position);
+
+        self.lighting.update(
+            &self.queue,
+            &lighting,
+            camera.position,
+            light_view_proj,
+        );
+        let sky_uniform = self
+            .lighting
+            .sky_uniform(inv_view_proj, camera.position, &lighting);
+        self.sky.update(&self.queue, &sky_uniform);
+
+        self.pipelines.update_scene(
+            &self.queue,
+            view_proj,
+            scene.animation_tick,
+            self.colormap_rect,
+        );
+
+        self.post.update_uniforms(
+            &self.queue,
+            &PostGpuUniform {
+                fog_color: [
+                    lighting.horizon_color.x,
+                    lighting.horizon_color.y,
+                    lighting.horizon_color.z,
+                    1.0,
+                ],
+                fog_density: 0.0022,
+                near: camera.near,
+                far: camera.far,
+                _align_pad: 0.0,
+                _pad: [0.0; 4],
+            },
+        );
+
         self.hud.set_text(
             &self.queue,
             hud_label.unwrap_or(""),
             self.config.width,
             self.config.height,
         );
+
         let output = self.surface.get_current_texture()?;
         let view = output
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
-
-        self.pipelines.update_scene(
-            &self.queue,
-            scene.camera.view_projection(),
-            scene.animation_tick,
-            self.colormap_rect,
-        );
 
         let mut encoder = self
             .device
@@ -175,88 +233,45 @@ impl Renderer {
                 label: Some("render_encoder"),
             });
 
-        {
-            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("depth_pass"),
-                color_attachments: &[],
-                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                    view: &self.depth_view,
-                    depth_ops: Some(wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(1.0),
-                        store: wgpu::StoreOp::Store,
-                    }),
-                    stencil_ops: None,
-                }),
-                occlusion_query_set: None,
-                timestamp_writes: None,
-            });
-            pass.set_pipeline(&self.pipelines.depth);
-            pass.set_bind_group(0, &self.pipelines.scene_bind_group, &[]);
-            pass.set_bind_group(1, &self.pipelines.atlas_bind_group, &[]);
-            draw_meshes(&mut pass, &self.opaque_meshes);
-            draw_meshes(&mut pass, &self.cutout_meshes);
-        }
-
-        {
-            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("opaque_pass"),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &view,
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color {
-                            r: 0.53,
-                            g: 0.81,
-                            b: 0.98,
-                            a: 1.0,
-                        }),
-                        store: wgpu::StoreOp::Store,
-                    },
-                })],
-                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                    view: &self.depth_view,
-                    depth_ops: Some(wgpu::Operations {
-                        load: wgpu::LoadOp::Load,
-                        store: wgpu::StoreOp::Store,
-                    }),
-                    stencil_ops: None,
-                }),
-                occlusion_query_set: None,
-                timestamp_writes: None,
-            });
-            pass.set_pipeline(&self.pipelines.opaque);
-            pass.set_bind_group(0, &self.pipelines.scene_bind_group, &[]);
-            pass.set_bind_group(1, &self.pipelines.atlas_bind_group, &[]);
-            draw_meshes(&mut pass, &self.opaque_meshes);
-        }
-
-        {
-            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("cutout_pass"),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &view,
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Load,
-                        store: wgpu::StoreOp::Store,
-                    },
-                })],
-                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                    view: &self.depth_view,
-                    depth_ops: Some(wgpu::Operations {
-                        load: wgpu::LoadOp::Load,
-                        store: wgpu::StoreOp::Store,
-                    }),
-                    stencil_ops: None,
-                }),
-                occlusion_query_set: None,
-                timestamp_writes: None,
-            });
-            pass.set_pipeline(&self.pipelines.cutout);
-            pass.set_bind_group(0, &self.pipelines.scene_bind_group, &[]);
-            pass.set_bind_group(1, &self.pipelines.atlas_bind_group, &[]);
-            draw_meshes(&mut pass, &self.cutout_meshes);
-        }
+        render_passes::record_sky_pass(
+            &mut encoder,
+            &self.post.hdr_view,
+            &self.depth_view,
+            &self.sky,
+            &self.lighting.env_bind_group,
+        );
+        render_passes::record_shadow_pass(
+            &mut encoder,
+            &self.lighting,
+            &self.pipelines,
+            &self.opaque_meshes,
+            &self.cutout_meshes,
+        );
+        render_passes::record_depth_pass(
+            &mut encoder,
+            &self.depth_view,
+            &self.lighting,
+            &self.pipelines,
+            &self.opaque_meshes,
+            &self.cutout_meshes,
+        );
+        render_passes::record_opaque_pass(
+            &mut encoder,
+            &self.post.hdr_view,
+            &self.depth_view,
+            &self.lighting,
+            &self.pipelines,
+            &self.opaque_meshes,
+        );
+        render_passes::record_cutout_pass(
+            &mut encoder,
+            &self.post.hdr_view,
+            &self.depth_view,
+            &self.lighting,
+            &self.pipelines,
+            &self.cutout_meshes,
+        );
+        render_passes::record_post_pass(&mut encoder, &view, &self.post);
 
         let mining_mesh = scene.mining_overlay.as_ref().map(|overlay| &overlay.mesh);
         self.pipelines
@@ -322,6 +337,8 @@ impl Renderer {
                 &mut pass,
                 &self.pipelines.scene_bind_group,
                 &self.pipelines.atlas_bind_group,
+                &self.lighting.uniform_bind_group,
+                &self.lighting.shadow_bind_group,
             );
         }
 
@@ -350,14 +367,6 @@ impl Renderer {
     }
 }
 
-fn draw_meshes(pass: &mut wgpu::RenderPass<'_>, meshes: &[GpuMesh]) {
-    for mesh in meshes {
-        pass.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
-        pass.set_index_buffer(mesh.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
-        pass.draw_indexed(0..mesh.index_count, 0, 0..1);
-    }
-}
-
 fn create_depth_texture(
     device: &wgpu::Device,
     width: u32,
@@ -374,7 +383,7 @@ fn create_depth_texture(
         sample_count: 1,
         dimension: wgpu::TextureDimension::D2,
         format: wgpu::TextureFormat::Depth32Float,
-        usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+        usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
         view_formats: &[],
     });
     let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
