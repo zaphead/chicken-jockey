@@ -356,6 +356,23 @@ Full client–server model per design doc §7:
 - Workspace scaffolded, all crates compile.
 -->
 
+### 2026-06-11 — Ambient time-of-day music (client-only)
+
+- `assets/music/manifest.toml` + MP3 tracks; `engine-assets` music manifest loader.
+- Client `client_music_system`: plays a random track (not the last played) when world time crosses morning/noon/evening/midnight MC tick anchors; 10-minute real-time cooldown after each song ends.
+- `engine-audio`: `SoundCategory::Music`, `play_music` / `music_is_playing` / `stop_music`.
+
+### 2026-06-11 — Sound engine (phase 1)
+
+- `engine-audio`: Kira backend, listener, category volumes, linear attenuation, voice caps.
+- `cargo run -p engine-assets --bin import-sound-pack` copies manifest-listed clips → `assets/sounds/`.
+- `game` emits `SoundCue` (break/place/dig, footsteps, jump, fall); client `audio_feedback_system` plays via `SoundRegistry`.
+- Block `sound_group` in `assets/blocks/*.toml`; upstream pack at `source-packs/sound-resource-pack/`.
+
+### 2026-06-11 — Sound source pack archived
+
+- Upstream “Vanilla Sounds” pack at `source-packs/sound-resource-pack/sound-resource-pack.zip` (~3k `.ogg` under `assets/minecraft/sounds/`).
+
 ### 2026-06-10 — Phases 0–9 implemented
 
 - Full Cargo workspace scaffolded per design doc §2.

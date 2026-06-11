@@ -1,7 +1,9 @@
 use engine_core::SystemContext;
-use engine_world::{SparseVoxelOctree, WorldMutationQueue};
+use engine_world::{SparseVoxelOctree, VoxelCell, WorldMutationQueue};
 
 use crate::components::{TerrainGeneration, WorldInitialized};
+use crate::events::{SoundCue, SoundKind};
+use crate::sound::block_center;
 
 pub fn flush_world_mutations_system(ctx: &mut SystemContext<'_>) {
     let pending = ctx
@@ -22,6 +24,19 @@ pub fn flush_world_mutations_system(ctx: &mut SystemContext<'_>) {
 
     let changes = WorldMutationQueue::apply(world, pending);
     for change in changes {
+        if change.old_cell.id != 0 && change.new_cell == VoxelCell::AIR {
+            ctx.events.send(SoundCue {
+                kind: SoundKind::BlockBreak,
+                position: block_center(change.position),
+                block_id: Some(change.old_cell.id),
+            });
+        } else if change.old_cell == VoxelCell::AIR && change.new_cell.id != 0 {
+            ctx.events.send(SoundCue {
+                kind: SoundKind::BlockPlace,
+                position: block_center(change.position),
+                block_id: Some(change.new_cell.id),
+            });
+        }
         ctx.events.send(change);
     }
 

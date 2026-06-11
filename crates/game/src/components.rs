@@ -113,6 +113,7 @@ pub struct BlockMiningState {
     pub target_block: BlockId,
     pub face_normal: IVec3,
     pub progress: f32,
+    pub dig_sound_step: u8,
 }
 
 /// Head can turn this far each way before the torso catches up (radians).
@@ -166,6 +167,9 @@ pub struct LocomotionState {
     pub jump_cooldown: u8,
     pub horizontal_tick_accum: f32,
     pub place_cooldown: u8,
+    pub footstep_cooldown: f32,
+    /// World Z when the player last left the ground (for fall-distance sounds).
+    pub fall_start_z: Option<f32>,
 }
 
 #[derive(Debug, Clone, Copy)]

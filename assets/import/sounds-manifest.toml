@@ -1,0 +1,165 @@
+# Curated Minecraft sounds → OpenCraft events.
+# Import: cargo run -p engine-assets --bin import-sound-pack
+#
+# MC convention: break/place → dig/* ; mining hit ticks → step/* (see assets/sounds/README.md)
+
+[[events]]
+id = "block_break_grass"
+kind = "block_break"
+sound_group = "grass"
+category = "blocks"
+pack = "dig/grass"
+variants = 4
+
+[[events]]
+id = "block_break_dirt"
+kind = "block_break"
+sound_group = "dirt"
+category = "blocks"
+pack = "dig/gravel"
+variants = 4
+
+[[events]]
+id = "block_break_stone"
+kind = "block_break"
+sound_group = "stone"
+category = "blocks"
+pack = "dig/stone"
+variants = 4
+
+[[events]]
+id = "block_break_leaves"
+kind = "block_break"
+sound_group = "leaves"
+category = "blocks"
+pack = "dig/grass"
+variants = 4
+volume = 0.85
+
+[[events]]
+id = "block_place_grass"
+kind = "block_place"
+sound_group = "grass"
+category = "blocks"
+pack = "dig/grass"
+variants = 4
+volume = 0.75
+
+[[events]]
+id = "block_place_dirt"
+kind = "block_place"
+sound_group = "dirt"
+category = "blocks"
+pack = "dig/gravel"
+variants = 4
+volume = 0.75
+
+[[events]]
+id = "block_place_stone"
+kind = "block_place"
+sound_group = "stone"
+category = "blocks"
+pack = "dig/stone"
+variants = 4
+volume = 0.75
+
+[[events]]
+id = "block_place_leaves"
+kind = "block_place"
+sound_group = "leaves"
+category = "blocks"
+pack = "dig/grass"
+variants = 4
+volume = 0.65
+
+# Mining progress ticks — vanilla uses step/* for .hit, not dig/*
+[[events]]
+id = "block_dig_hit_grass"
+kind = "block_dig_hit"
+sound_group = "grass"
+category = "blocks"
+pack = "step/grass"
+variants = 6
+volume = 0.5
+
+[[events]]
+id = "block_dig_hit_dirt"
+kind = "block_dig_hit"
+sound_group = "dirt"
+category = "blocks"
+pack = "step/gravel"
+variants = 4
+volume = 0.5
+
+[[events]]
+id = "block_dig_hit_stone"
+kind = "block_dig_hit"
+sound_group = "stone"
+category = "blocks"
+pack = "step/stone"
+variants = 6
+volume = 0.5
+
+[[events]]
+id = "block_dig_hit_leaves"
+kind = "block_dig_hit"
+sound_group = "leaves"
+category = "blocks"
+pack = "step/grass"
+variants = 6
+volume = 0.45
+
+[[events]]
+id = "player_footstep_grass"
+kind = "player_footstep"
+sound_group = "grass"
+category = "player"
+pack = "step/grass"
+variants = 6
+
+[[events]]
+id = "player_footstep_dirt"
+kind = "player_footstep"
+sound_group = "dirt"
+category = "player"
+pack = "step/gravel"
+variants = 4
+
+[[events]]
+id = "player_footstep_stone"
+kind = "player_footstep"
+sound_group = "stone"
+category = "player"
+pack = "step/stone"
+variants = 6
+
+[[events]]
+id = "player_footstep_leaves"
+kind = "player_footstep"
+sound_group = "leaves"
+category = "player"
+pack = "step/grass"
+variants = 6
+volume = 0.7
+
+# Fall sounds: MC plays at 4–7 blocks (small) and 8+ blocks (big); not on normal jumps
+[[events]]
+id = "player_fall_big"
+kind = "player_fall"
+sound_group = "big"
+category = "player"
+pack = "damage/fallbig"
+variants = 1
+indexed = false
+attenuation = "none"
+
+[[events]]
+id = "player_fall_small"
+kind = "player_fall"
+sound_group = "small"
+category = "player"
+pack = "damage/fallsmall"
+variants = 1
+indexed = false
+attenuation = "none"
+volume = 0.8

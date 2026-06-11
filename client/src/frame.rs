@@ -18,7 +18,6 @@ pub fn run_client_frame(app: &mut App, frame_delta: f32) {
             time.advance_fixed();
         }
         app.tick_fixed_step();
-        app.end_frame();
     }
 
     if let Some(time) = app.resource_mut::<Time>() {
@@ -26,4 +25,5 @@ pub fn run_client_frame(app: &mut App, frame_delta: f32) {
     }
 
     app.tick_render();
+    app.end_frame();
 }

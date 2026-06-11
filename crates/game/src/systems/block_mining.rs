@@ -6,7 +6,8 @@ use glam::IVec3;
 use crate::components::{
     BlockMiningState, Mounted, NetPlayerId, Player, PlayerInventory, Transform,
 };
-use crate::events::{BlockBroken, BlockChangeIntent, BlockMiningProgress};
+use crate::events::{BlockBroken, BlockChangeIntent, BlockMiningProgress, SoundCue, SoundKind};
+use crate::sound::block_center;
 use crate::input::resolve_input;
 use crate::mining::{can_harvest_block, mining_delta, tool_efficiency};
 use crate::play_mode::survival_active;
@@ -88,6 +89,7 @@ pub fn block_mining_system(ctx: &mut SystemContext<'_>) {
             mining.target_block = block_id;
             mining.face_normal = hit.normal;
             mining.progress = 0.0;
+            mining.dig_sound_step = 0;
         }
 
         let active_tool = inventory.active_tool();
@@ -95,6 +97,16 @@ pub fn block_mining_system(ctx: &mut SystemContext<'_>) {
         let can_harvest = can_harvest_block(&registry, &tools, block_id, active_tool);
         let efficiency = tool_efficiency(&tools, active_tool);
         mining.progress += mining_delta(sim_dt, hardness, efficiency, can_harvest);
+
+        let dig_step = (mining.progress * 4.0).floor().clamp(0.0, 3.0) as u8;
+        if dig_step > mining.dig_sound_step && mining.progress < 1.0 {
+            mining.dig_sound_step = dig_step;
+            ctx.events.send(SoundCue {
+                kind: SoundKind::BlockDigHit,
+                position: block_center(hit.block_pos),
+                block_id: Some(block_id),
+            });
+        }
 
         if mining.progress >= 1.0 {
             let pos = hit.block_pos;
@@ -113,6 +125,7 @@ pub fn block_mining_system(ctx: &mut SystemContext<'_>) {
             });
             mining.target = None;
             mining.progress = 0.0;
+            mining.dig_sound_step = 0;
             ctx.events.send(BlockMiningProgress {
                 position: pos,
                 face_normal: hit.normal,
@@ -135,6 +148,7 @@ fn reset_mining(ctx: &mut SystemContext<'_>, player_entity: hecs::Entity) {
     if mining.target.is_some() || mining.progress > 0.0 {
         mining.target = None;
         mining.progress = 0.0;
+        mining.dig_sound_step = 0;
         ctx.events.send(BlockMiningProgress {
             position: BlockPos::new(0, 0, 0),
             face_normal: IVec3::ZERO,

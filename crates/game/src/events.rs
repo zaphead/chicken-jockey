@@ -1,5 +1,5 @@
 use engine_world::{BlockId, BlockPos};
-use glam::IVec3;
+use glam::{IVec3, Vec3};
 
 /// Player intent to change a block; authoritative systems apply via `WorldMutationQueue`.
 #[derive(Debug, Clone, Copy)]
@@ -31,4 +31,41 @@ pub struct PlayerStateChanged {
     pub position: [f32; 3],
     pub yaw: f32,
     pub pitch: f32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SoundKind {
+    BlockBreak,
+    BlockPlace,
+    BlockDigHit,
+    PlayerFootstep,
+    PlayerFall { big: bool },
+}
+
+impl SoundKind {
+    pub fn manifest_key(self) -> &'static str {
+        match self {
+            Self::BlockBreak => "block_break",
+            Self::BlockPlace => "block_place",
+            Self::BlockDigHit => "block_dig_hit",
+            Self::PlayerFootstep => "player_footstep",
+            Self::PlayerFall { .. } => "player_fall",
+        }
+    }
+
+    pub fn manifest_sound_group(self) -> Option<&'static str> {
+        match self {
+            Self::PlayerFall { big: true } => Some("big"),
+            Self::PlayerFall { big: false } => Some("small"),
+            _ => None,
+        }
+    }
+}
+
+/// Audio-agnostic cue consumed by the client sound system.
+#[derive(Debug, Clone, Copy)]
+pub struct SoundCue {
+    pub kind: SoundKind,
+    pub position: Vec3,
+    pub block_id: Option<BlockId>,
 }

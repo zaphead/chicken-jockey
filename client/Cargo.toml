@@ -21,9 +21,11 @@ engine-world = { path = "../crates/engine-world" }
 engine-render = { path = "../crates/engine-render" }
 engine-input = { path = "../crates/engine-input" }
 engine-assets = { path = "../crates/engine-assets" }
+engine-audio = { path = "../crates/engine-audio" }
 engine-net = { path = "../crates/engine-net" }
 game = { path = "../crates/game" }
 winit = { workspace = true }
 glam = { workspace = true }
 env_logger = { workspace = true }
 log = { workspace = true }
+rand = { workspace = true }

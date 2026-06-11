@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use engine_core::{SystemContext, Time};
-use engine_world::SparseVoxelOctree;
+use engine_world::{BlockPos, SparseVoxelOctree};
 use glam::{Vec2, Vec3};
 use hecs::Entity;
 
@@ -9,6 +9,7 @@ use crate::axes::{grounded_probe_offset, horizontal_forward};
 use crate::components::{
     Collider, LocomotionState, Mounted, NetPlayerId, Player, Transform, Velocity,
 };
+use crate::events::{SoundCue, SoundKind};
 use crate::input::resolve_input;
 use crate::movement::{
     apply_vertical_post_move, jump_cooldown_sim_steps, update_horizontal_velocity,
@@ -16,6 +17,12 @@ use crate::movement::{
 };
 use crate::play_mode::survival_active;
 use crate::systems::physics::collision::collides_aabb;
+
+const FOOTSTEP_INTERVAL: f32 = 0.35;
+const FOOTSTEP_MIN_SPEED: f32 = 0.05;
+/// MC: no fall sound for drops ≤ 3 blocks; small at 4–7, big at 8+.
+const FALL_SOUND_MIN_BLOCKS: f32 = 4.0;
+const FALL_SOUND_BIG_BLOCKS: f32 = 8.0;
 
 pub fn player_look_system(ctx: &mut SystemContext<'_>) {
     if !survival_active(ctx) {
@@ -152,8 +159,42 @@ pub fn player_locomotion_system(ctx: &mut SystemContext<'_>) {
             vel.z = apply_vertical_post_move(vel.z, delta);
 
             velocity.0 = vel;
+
+            if locomotion.was_on_ground && !on_ground {
+                locomotion.fall_start_z = Some(position.z);
+            }
+
+            if !locomotion.was_on_ground && on_ground {
+                if let Some(start_z) = locomotion.fall_start_z {
+                    let fall_blocks = start_z - position.z;
+                    if fall_blocks >= FALL_SOUND_MIN_BLOCKS {
+                        ctx.events.send(SoundCue {
+                            kind: SoundKind::PlayerFall {
+                                big: fall_blocks >= FALL_SOUND_BIG_BLOCKS,
+                            },
+                            position,
+                            block_id: block_under_feet(ctx, position, half_extents),
+                        });
+                    }
+                }
+                locomotion.fall_start_z = None;
+            }
+
+            let speed = Vec2::new(vel.x, vel.y).length();
+            if locomotion.footstep_cooldown > 0.0 {
+                locomotion.footstep_cooldown = (locomotion.footstep_cooldown - delta).max(0.0);
+            }
+            if on_ground && speed > FOOTSTEP_MIN_SPEED && locomotion.footstep_cooldown <= 0.0 {
+                ctx.events.send(SoundCue {
+                    kind: SoundKind::PlayerFootstep,
+                    position,
+                    block_id: block_under_feet(ctx, position, half_extents),
+                });
+                locomotion.footstep_cooldown = FOOTSTEP_INTERVAL;
+            }
+
+            locomotion.was_on_ground = locomotion.on_ground;
             locomotion.on_ground = on_ground;
-            locomotion.was_on_ground = on_ground;
             if locomotion.jump_cooldown > 0 {
                 locomotion.jump_cooldown -= 1;
             }
@@ -179,6 +220,26 @@ fn is_grounded(ctx: &SystemContext<'_>, position: Vec3, half_extents: Vec3) -> b
         position + grounded_probe_offset(half_extents.z),
         Vec3::new(half_extents.x, half_extents.y, 0.05),
     )
+}
+
+fn block_under_feet(
+    ctx: &SystemContext<'_>,
+    position: Vec3,
+    half_extents: Vec3,
+) -> Option<engine_world::BlockId> {
+    let probe = position + grounded_probe_offset(half_extents.z) + Vec3::new(0.0, 0.0, -0.1);
+    let block_pos = BlockPos::new(
+        probe.x.floor() as i32,
+        probe.y.floor() as i32,
+        probe.z.floor() as i32,
+    );
+    let world = ctx.resources.get::<SparseVoxelOctree>()?;
+    let block_id = world.get_block(block_pos);
+    if block_id == 0 {
+        None
+    } else {
+        Some(block_id)
+    }
 }
 
 pub(crate) fn collides_at(ctx: &SystemContext<'_>, position: Vec3, half_extents: Vec3) -> bool {

@@ -2,6 +2,7 @@ hardness = 0.6
 id = 3
 layout = "cube_v1"
 name = "grass"
+sound_group = "grass"
 preferred_tool = "pickaxe"
 solid = true
 tint = "biome_grass"

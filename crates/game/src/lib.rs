@@ -5,6 +5,7 @@ mod components;
 pub mod day_night;
 mod debug_world;
 mod events;
+mod sound;
 mod inventory;
 mod input;
 mod mode;
@@ -23,7 +24,10 @@ pub use axes::{
     UP,
 };
 pub use components::{DisplayedPlayerView, TerrainGeneration, *};
-pub use events::{BlockBroken, BlockChangeIntent, BlockMiningProgress, PlayerStateChanged};
+pub use events::{
+    BlockBroken, BlockChangeIntent, BlockMiningProgress, PlayerStateChanged, SoundCue, SoundKind,
+};
+pub use sound::block_center;
 pub use inventory::{
     can_merge_stacks, mark_inventory_dirty, resolve_block_drops, stacks_fit_together, try_insert,
     DropAmount, InsertResult, InventoryCommand, InventoryCommandQueue, MINED_PICKUP_DELAY_TICKS,
@@ -39,8 +43,8 @@ pub use movement::{
     wish_direction_horizontal, MOUSE_SENSITIVITY,
 };
 pub use day_night::{
-    build_lighting_snapshot, format_time_of_day, time_of_day_label, DayNightCycle,
-    DEFAULT_DAY_LENGTH_SECS, LightingSnapshot,
+    build_lighting_snapshot, format_time_of_day, time_of_day_label, world_time_crossed_anchors,
+    DayNightCycle, DEFAULT_DAY_LENGTH_SECS, LightingSnapshot, MUSIC_WORLD_ANCHORS,
 };
 pub use debug_world::{iter_mesh_chunks, ActiveDebugWorld, DebugWorldKind};
 pub use play_mode::{survival_active, ActivePlayMode, PlayMode};

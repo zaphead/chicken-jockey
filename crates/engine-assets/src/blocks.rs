@@ -72,6 +72,8 @@ pub struct BlockDefinition {
     pub requires_tool: bool,
     #[serde(default)]
     pub drops: Vec<DropSpec>,
+    #[serde(default)]
+    pub sound_group: Option<String>,
 }
 
 fn default_hardness() -> f32 {
@@ -151,6 +153,16 @@ impl BlockRegistry {
         self.get(id)
             .map(|block| block.drops.as_slice())
             .unwrap_or(&[])
+    }
+
+    pub fn sound_group(&self, id: BlockId) -> &str {
+        let Some(block) = self.get(id) else {
+            return "stone";
+        };
+        block
+            .sound_group
+            .as_deref()
+            .unwrap_or(block.name.as_str())
     }
 }
 

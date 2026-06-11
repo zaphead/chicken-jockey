@@ -2,6 +2,7 @@ hardness = 1.5
 id = 2
 layout = "cube_v1"
 name = "stone"
+sound_group = "stone"
 preferred_tool = "pickaxe"
 requires_tool = true
 solid = true

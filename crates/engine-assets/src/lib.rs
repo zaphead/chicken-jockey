@@ -12,7 +12,9 @@ mod material;
 mod mining_atlas;
 mod poll;
 mod server;
+mod music;
 mod skin;
+mod sounds;
 
 pub use atlas::{textures_asset_path, tile_uv_rect, TextureAtlas, UvRect, DEFAULT_GRID, DEFAULT_TILE_SIZE};
 pub use environment::{environment_asset_path, load_environment_textures, EnvironmentTextures};
@@ -38,5 +40,13 @@ pub use material::{
     ResolvedFace, TintMode,
 };
 pub use poll::poll_assets_system;
+pub use music::{
+    load_music_manifest, music_asset_path, music_manifest_path, MusicManifest, MusicTrack,
+};
 pub use skin::{load_player_skin, player_skin_path, PlayerSkin};
+pub use sounds::{
+    default_sound_pack_path, import_sound_pack, import_sound_pack_from_paths, load_sound_registry,
+    load_sounds_manifest, sounds_asset_path, sounds_manifest_path, AttenuationToml,
+    ResolvedSoundEvent, SoundImportReport, SoundRegistry,
+};
 pub use server::{assets_dir, blocks_asset_path, runtime_asset_root, AssetServer, Handle, LoadState};

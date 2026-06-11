@@ -1,9 +1,13 @@
-//! Audio abstraction stub for future implementation.
+//! Client-side audio playback (Kira backend).
 
-pub struct AudioEngine;
+mod attenuation;
+mod categories;
+mod clip;
+mod engine;
+mod spatial;
 
-impl AudioEngine {
-    pub fn new() -> Self {
-        Self
-    }
-}
+pub use attenuation::Attenuation;
+pub use categories::SoundCategory;
+pub use clip::SoundClip;
+pub use engine::{AudioEngine, PlayRequest, SoundHandle};
+pub use spatial::{Listener, SpatialMix};

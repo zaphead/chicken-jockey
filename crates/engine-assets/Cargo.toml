@@ -13,6 +13,11 @@ image = { version = "0.25", default-features = false, features = ["png"] }
 serde_json = { workspace = true }
 zip = { workspace = true }
 log = { workspace = true }
+rand = { workspace = true }
+
+[[bin]]
+name = "import-sound-pack"
+path = "src/bin/import_sound_pack.rs"
 
 [dev-dependencies]
 tempfile = "3"

@@ -1,0 +1,65 @@
+# Bundled music tracks — title, author, and album for credits / attribution.
+
+[[tracks]]
+id = "as_time_flies"
+file = "Ty's Music - As Time Flies.mp3"
+title = "As Time Flies"
+author = "Ty's Music"
+album = "As Time Flies"
+source_url = "https://www.youtube.com/watch?v=rF_xVRCrzOs"
+
+[[tracks]]
+id = "moments_capsuled_in_time"
+file = "Moments Capsuled In Time.mp3"
+title = "Moments Capsuled In Time"
+author = "Benjamin Gustafsson"
+album = "Rest This Worried Heart"
+source_url = "https://www.youtube.com/watch?v=5kvy9ofJgfI"
+
+[[tracks]]
+id = "nice_to_meet_you_too"
+file = "Koshun Nakao - Nice To Meet You Too (Official Audio).mp3"
+title = "Nice To Meet You Too"
+author = "Koshun Nakao"
+album = "Nice To Meet You"
+source_url = "https://www.youtube.com/watch?v=Ro8qtqpFzr0"
+
+[[tracks]]
+id = "positano"
+file = "Stephan Moccio - Positano.mp3"
+title = "Positano"
+author = "Stephan Moccio"
+album = "Scenes From a Velvet Room"
+source_url = "https://www.youtube.com/watch?v=q_nIJXlBbOE"
+
+[[tracks]]
+id = "banana_milk"
+file = "banana milk.mp3"
+title = "banana milk"
+author = "Elysia"
+album = "a quiet life"
+source_url = "https://www.youtube.com/watch?v=iloBe4HJiTE"
+
+[[tracks]]
+id = "conclusion"
+file = "conclusion.mp3"
+title = "conclusion"
+author = "nowt"
+album = "indescribable feeling"
+source_url = "https://www.youtube.com/watch?v=8VVOKoXjzBI"
+
+[[tracks]]
+id = "beautifully_dissolved"
+file = "Beautifully Dissolved.mp3"
+title = "Beautifully Dissolved"
+author = "Lama House"
+album = "Beautifully Dissolved"
+source_url = "https://www.youtube.com/watch?v=6pWNcYXJahA"
+
+[[tracks]]
+id = "to_draw_flowers"
+file = "to draw flowers.mp3"
+title = "to draw flowers"
+author = "Noah Stone"
+album = "to draw flowers"
+source_url = "https://www.youtube.com/watch?v=7kOhFmiRuGs"

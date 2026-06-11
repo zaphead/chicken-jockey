@@ -2,5 +2,6 @@ hardness = 0.5
 id = 1
 layout = "cube_v1"
 name = "dirt"
+sound_group = "dirt"
 preferred_tool = "pickaxe"
 solid = true

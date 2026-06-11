@@ -2,9 +2,11 @@ use std::sync::Arc;
 
 use engine_assets::{
     blocks_asset_path, load_block_registry, load_environment_textures, load_gui_textures,
-    load_player_skin, load_tool_registry, pack_block_materials, runtime_asset_root,
+    load_music_manifest, load_player_skin, load_sound_registry, load_tool_registry,
+    music_asset_path, music_manifest_path, pack_block_materials, runtime_asset_root,
     textures_asset_path, tools_asset_path, AssetServer,
 };
+use engine_audio::AudioEngine;
 use engine_core::App;
 use engine_input::InputState;
 use engine_render::{ParticleSystem, RenderExtractState, RenderSurfaceInfo, RenderWorld};
@@ -15,6 +17,8 @@ use game::{
     WorldInitialized, WorldItemBook, WorldSeed,
 };
 
+use crate::systems::audio::{ClientAudio, SoundBank};
+use crate::systems::music::{MusicBank, MusicPlaybackState};
 use crate::systems::input::PendingWinitInput;
 use crate::systems::menu::{ClientSettings, CursorGrabRequest};
 use crate::systems::ui_state::ClientUiState;
@@ -58,6 +62,7 @@ pub fn bootstrap_client_shell(app: &mut App) {
     });
     app.insert_resource(WorldItemBook::default());
     app.insert_resource(InventoryCommandQueue::default());
+    app.insert_resource(MusicPlaybackState::default());
 }
 
 /// Loads block registry and packs block textures into a single resource.
@@ -76,6 +81,44 @@ pub fn bootstrap_client_resources(app: &mut App, manifest_dir: &str) {
     app.insert_resource(Arc::new(load_environment_textures(manifest_dir)));
     app.insert_resource(Arc::new(load_gui_textures(manifest_dir)));
     app.insert_resource(Arc::new(load_player_skin(manifest_dir)));
+
+    match load_sound_registry(manifest_dir) {
+        Ok(sound_registry) => {
+            match AudioEngine::new() {
+                Ok(engine) => {
+                    log::info!("client audio ready");
+                    app.insert_resource(ClientAudio {
+                        engine,
+                        bank: SoundBank::default(),
+                    });
+                }
+                Err(error) => {
+                    log::warn!("client audio disabled: {error}");
+                }
+            }
+            app.insert_resource(sound_registry);
+        }
+        Err(error) => {
+            log::warn!("sound registry unavailable; client audio disabled: {error}");
+        }
+    }
+
+    match load_music_manifest(&music_manifest_path(manifest_dir)) {
+        Ok(music_manifest) => {
+            match MusicBank::from_manifest(&music_manifest, &music_asset_path(manifest_dir)) {
+                Ok(bank) => {
+                    log::info!("ambient music ready ({} tracks)", music_manifest.tracks.len());
+                    app.insert_resource(bank);
+                }
+                Err(error) => {
+                    log::warn!("ambient music disabled: {error}");
+                }
+            }
+        }
+        Err(error) => {
+            log::warn!("music manifest unavailable; ambient music disabled: {error}");
+        }
+    }
 }
 
 /// Shared client ECS bootstrap for the game binary, diagnostics, and tests.

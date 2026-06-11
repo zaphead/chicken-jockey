@@ -1,3 +1,5 @@
+pub mod audio;
+pub mod music;
 pub mod extract;
 pub mod extract_items;
 pub mod net_items;
@@ -21,6 +23,8 @@ pub mod zoom;
 use engine_assets::poll_assets_system;
 use engine_core::Stage;
 
+pub use audio::{audio_feedback_system, ClientAudio};
+pub use music::{client_music_system, MusicBank, MusicPlaybackState};
 pub use extract::{
     extract_render_world_system, queue_initial_world_meshes_system, sync_block_changes_system,
 };
@@ -52,5 +56,7 @@ pub fn register_client_schedule(app: &mut engine_core::App) {
     app.add_system(Stage::Extract, particle_extract_system);
     app.add_system(Stage::Extract, extract_client_gui_system);
     app.add_system(Stage::Extract, commit_player_transform_snapshot_system);
+    app.add_system(Stage::Render, client_music_system);
+    app.add_system(Stage::Render, audio_feedback_system);
     app.add_system(Stage::Render, present_frame_system);
 }
