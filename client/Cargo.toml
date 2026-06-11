@@ -29,3 +29,4 @@ glam = { workspace = true }
 env_logger = { workspace = true }
 log = { workspace = true }
 rand = { workspace = true }
+crossbeam-channel = { workspace = true }

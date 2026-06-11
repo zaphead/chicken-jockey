@@ -106,8 +106,12 @@ pub fn bootstrap_client_resources(app: &mut App, manifest_dir: &str) {
     match load_music_manifest(&music_manifest_path(manifest_dir)) {
         Ok(music_manifest) => {
             match MusicBank::from_manifest(&music_manifest, &music_asset_path(manifest_dir)) {
-                Ok(bank) => {
-                    log::info!("ambient music ready ({} tracks)", music_manifest.tracks.len());
+                Ok(mut bank) => {
+                    bank.start_background_preload();
+                    log::info!(
+                        "ambient music ready ({} tracks, background preload)",
+                        music_manifest.tracks.len()
+                    );
                     app.insert_resource(bank);
                 }
                 Err(error) => {

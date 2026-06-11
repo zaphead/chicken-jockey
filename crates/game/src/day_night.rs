@@ -137,7 +137,7 @@ pub fn format_time_of_day(world_time: f32) -> String {
 }
 
 /// World-time ticks where ambient music may trigger (morning, noon, evening, midnight).
-pub const MUSIC_WORLD_ANCHORS: [f32; 4] = [0.0, 6_000.0, 12_000.0, 18_000.0];
+pub const MUSIC_WORLD_ANCHORS: [f32; 4] = [1_000.0, 7_000.0, 13_000.0, 19_000.0];
 
 fn anchor_crossed(previous: f32, current: f32, anchor: f32) -> bool {
     if previous <= current {
@@ -261,24 +261,24 @@ mod tests {
 
     #[test]
     fn crosses_noon_advancing_forward() {
-        let crossed = world_time_crossed_anchors(5_990.0, 6_010.0);
-        assert_eq!(crossed, vec![6_000.0]);
+        let crossed = world_time_crossed_anchors(6_990.0, 7_010.0);
+        assert_eq!(crossed, vec![7_000.0]);
     }
 
     #[test]
     fn crosses_morning_on_day_wrap() {
-        let crossed = world_time_crossed_anchors(23_990.0, 10.0);
-        assert!(crossed.contains(&0.0));
+        let crossed = world_time_crossed_anchors(23_990.0, 1_500.0);
+        assert!(crossed.contains(&1_000.0));
     }
 
     #[test]
     fn no_cross_when_stationary() {
-        assert!(world_time_crossed_anchors(6_000.0, 6_000.0).is_empty());
+        assert!(world_time_crossed_anchors(7_000.0, 7_000.0).is_empty());
     }
 
     #[test]
     fn fast_forward_crosses_multiple_anchors() {
         let crossed = world_time_crossed_anchors(0.0, 18_500.0);
-        assert_eq!(crossed, vec![6_000.0, 12_000.0, 18_000.0]);
+        assert_eq!(crossed, vec![1_000.0, 7_000.0, 13_000.0]);
     }
 }

@@ -1,6 +1,8 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+use std::thread;
 
+use crossbeam_channel::{Receiver, TryRecvError};
 use engine_assets::{MusicManifest, MusicTrack};
 use engine_audio::SoundClip;
 use engine_core::SystemContext;
@@ -15,6 +17,7 @@ pub struct MusicBank {
     music_dir: PathBuf,
     tracks: Vec<MusicTrack>,
     clips: HashMap<String, SoundClip>,
+    preload_rx: Option<Receiver<(String, Result<SoundClip, String>)>>,
 }
 
 impl MusicBank {
@@ -29,10 +32,60 @@ impl MusicBank {
             music_dir: music_dir.to_path_buf(),
             tracks: manifest.tracks.clone(),
             clips: HashMap::new(),
+            preload_rx: None,
         })
     }
 
-    fn pick_random(&self, exclude: Option<&str>) -> Option<&MusicTrack> {
+    /// Decode tracks on a background thread so sunset anchors never block the main loop.
+    pub fn start_background_preload(&mut self) {
+        if self.tracks.is_empty() || self.preload_rx.is_some() {
+            return;
+        }
+        let (tx, rx) = crossbeam_channel::unbounded();
+        self.preload_rx = Some(rx);
+        let jobs: Vec<(String, PathBuf)> = self
+            .tracks
+            .iter()
+            .map(|track| (track.id.clone(), self.music_dir.join(&track.file)))
+            .collect();
+        thread::Builder::new()
+            .name("music-preload".into())
+            .spawn(move || {
+                for (id, path) in jobs {
+                    let result = SoundClip::from_file(&path);
+                    if tx.send((id, result)).is_err() {
+                        break;
+                    }
+                }
+            })
+            .expect("spawn music preload thread");
+    }
+
+    pub fn poll_preload(&mut self) {
+        let Some(rx) = &self.preload_rx else {
+            return;
+        };
+        loop {
+            match rx.try_recv() {
+                Ok((id, Ok(clip))) => {
+                    self.clips.insert(id, clip);
+                }
+                Ok((id, Err(error))) => {
+                    log::warn!("music preload {id}: {error}");
+                }
+                Err(TryRecvError::Empty) => break,
+                Err(TryRecvError::Disconnected) => {
+                    self.preload_rx = None;
+                    break;
+                }
+            }
+        }
+        if self.preload_rx.is_some() && self.clips.len() == self.tracks.len() {
+            self.preload_rx = None;
+        }
+    }
+
+    fn pick_random_loaded(&self, exclude: Option<&str>) -> Option<&MusicTrack> {
         if self.tracks.is_empty() {
             return None;
         }
@@ -40,21 +93,20 @@ impl MusicBank {
         let mut candidates: Vec<&MusicTrack> = self
             .tracks
             .iter()
+            .filter(|track| self.clips.contains_key(&track.id))
             .filter(|track| exclude != Some(track.id.as_str()))
             .collect();
         if candidates.is_empty() {
-            candidates = self.tracks.iter().collect();
+            candidates = self
+                .tracks
+                .iter()
+                .filter(|track| self.clips.contains_key(&track.id))
+                .collect();
         }
         candidates.choose(&mut rng).copied()
     }
 
-    fn clip(&mut self, track_id: &str) -> Option<&SoundClip> {
-        if !self.clips.contains_key(track_id) {
-            let track = self.tracks.iter().find(|t| t.id == track_id)?;
-            let path = self.music_dir.join(&track.file);
-            let clip = SoundClip::from_file(&path).ok()?;
-            self.clips.insert(track_id.to_string(), clip);
-        }
+    fn clip(&self, track_id: &str) -> Option<&SoundClip> {
         self.clips.get(track_id)
     }
 }
@@ -69,6 +121,10 @@ pub struct MusicPlaybackState {
 }
 
 pub fn client_music_system(ctx: &mut SystemContext<'_>) {
+    if let Some(bank) = ctx.resources.get_mut::<MusicBank>() {
+        bank.poll_preload();
+    }
+
     let Some(time) = ctx.resources.get::<engine_core::Time>() else {
         return;
     };
@@ -129,7 +185,7 @@ pub fn client_music_system(ctx: &mut SystemContext<'_>) {
         } else {
             ctx.resources
                 .get::<MusicBank>()
-                .and_then(|bank| bank.pick_random(exclude.as_deref()))
+                .and_then(|bank| bank.pick_random_loaded(exclude.as_deref()))
                 .cloned()
         }
     };
@@ -139,7 +195,7 @@ pub fn client_music_system(ctx: &mut SystemContext<'_>) {
     };
 
     let clip = {
-        let bank = ctx.resources.get_mut::<MusicBank>().expect("checked");
+        let bank = ctx.resources.get::<MusicBank>().expect("checked");
         bank.clip(&track.id).cloned()
     };
     let Some(clip) = clip else {
