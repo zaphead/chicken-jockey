@@ -371,7 +371,7 @@ Full client–server model per design doc §7:
 
 ### 2026-06-11 — Sound source pack archived
 
-- Upstream “Vanilla Sounds” pack at `source-packs/sound-resource-pack/sound-resource-pack.zip` (~3k `.ogg` under `assets/minecraft/sounds/`).
+- Upstream “Vanilla Sounds” pack at `source-packs/sound-resource-pack/sound-resource-pack/` (~3k `.ogg` under `assets/minecraft/sounds/`).
 
 ### 2026-06-10 — Phases 0–9 implemented
 

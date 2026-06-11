@@ -47,5 +47,5 @@ pub fn import_sound_pack_from_paths(
 }
 
 pub fn default_sound_pack_path(repo_root: &Path) -> PathBuf {
-    repo_root.join("source-packs/sound-resource-pack/sound-resource-pack.zip")
+    repo_root.join("source-packs/sound-resource-pack/sound-resource-pack")
 }

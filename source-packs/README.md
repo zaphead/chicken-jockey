@@ -24,4 +24,4 @@ cargo run -p engine-assets --bin import-sound-pack
 
 Manifest: `assets/import/sounds-manifest.toml`
 
-Browse `assets/minecraft/sounds/` under `extracted/` (gitignored).
+Browse `assets/minecraft/sounds/` under `sound-resource-pack/`.
