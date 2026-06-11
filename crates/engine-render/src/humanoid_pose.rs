@@ -37,10 +37,31 @@ pub struct PlayerAnimationParams {
     pub head_pitch: f32,
     /// Head yaw relative to the torso (Z-up → rotation around Z).
     pub head_yaw: f32,
+    /// Blend weight for the right-arm digging pose (0 = walk, 1 = dig).
+    pub dig_amount: f32,
+    /// Phase of the digging oval swing (radians).
+    pub dig_phase: f32,
+    /// Blend weight for the right-arm place pose (0 = walk, 1 = place swing).
+    pub place_amount: f32,
+    /// Phase of the place oval swing (radians).
+    pub place_phase: f32,
 }
 
 fn right_arm_walk_rotation(swing: f32, amount: f32) -> f32 {
     (swing + PI).cos() * 2.0 * amount * 0.5
+}
+
+/// Right-arm digging swing: oval motion (up/down on X, side-to-side on Y).
+fn right_arm_dig_rotation(phase: f32) -> Vec3 {
+    const BASE_FORWARD: f32 = 1.15;
+    const UP_DOWN_AMP: f32 = 0.55;
+    const SIDE_AMP: f32 = 0.1;
+    let t = -phase;
+    Vec3::new(
+        BASE_FORWARD - t.sin() * UP_DOWN_AMP,
+        -t.cos() * SIDE_AMP,
+        0.0,
+    )
 }
 
 /// Minecraft `HumanoidModel` walk cycle (limb swing + head look).
@@ -50,10 +71,19 @@ pub fn humanoid_pose_from_animation(params: PlayerAnimationParams) -> HumanoidPo
     let arm_scale = 2.0 * amount * 0.5;
     let leg_scale = 1.4 * amount;
 
+    let walk_right_arm = Vec3::new(right_arm_walk_rotation(swing, amount), 0.0, 0.0);
+    let dig_t = params.dig_amount.clamp(0.0, 1.0);
+    let place_t = params.place_amount.clamp(0.0, 1.0);
+    let right_arm_rot = if dig_t > 0.0 {
+        walk_right_arm.lerp(right_arm_dig_rotation(params.dig_phase), dig_t)
+    } else {
+        walk_right_arm.lerp(right_arm_dig_rotation(params.place_phase), place_t)
+    };
+
     HumanoidPose {
         head_rot: Vec3::new(params.head_pitch, 0.0, params.head_yaw),
         body_rot: Vec3::ZERO,
-        right_arm_rot: Vec3::new(right_arm_walk_rotation(swing, amount), 0.0, 0.0),
+        right_arm_rot,
         left_arm_rot: Vec3::new(swing.cos() * arm_scale, 0.0, 0.0),
         right_leg_rot: Vec3::new((swing + PI).cos() * leg_scale, 0.0, 0.0),
         left_leg_rot: Vec3::new(swing.cos() * leg_scale, 0.0, 0.0),
@@ -87,10 +117,29 @@ mod tests {
             limb_swing_amount: 1.0,
             head_pitch: 0.0,
             head_yaw: 0.0,
+            ..Default::default()
         });
         assert!(
             (pose.right_arm_rot.x + pose.left_arm_rot.x).abs() < 0.01,
             "arms should swing in opposition"
         );
+    }
+
+    #[test]
+    fn dig_pose_only_moves_right_arm() {
+        let walk = humanoid_pose_from_animation(PlayerAnimationParams {
+            limb_swing: 0.5,
+            limb_swing_amount: 1.0,
+            ..Default::default()
+        });
+        let dig = humanoid_pose_from_animation(PlayerAnimationParams {
+            limb_swing: 0.5,
+            limb_swing_amount: 1.0,
+            dig_amount: 1.0,
+            dig_phase: PI / 2.0,
+            ..Default::default()
+        });
+        assert_ne!(dig.right_arm_rot, walk.right_arm_rot);
+        assert_eq!(dig.left_arm_rot, walk.left_arm_rot);
     }
 }

@@ -51,6 +51,14 @@ pub fn sync_block_changes_system(ctx: &mut SystemContext<'_>) {
                     &materials,
                     &biome,
                 );
+            } else if change.old_cell == VoxelCell::AIR && change.new_cell.id != 0 {
+                particles.spawn_block_place(
+                    change.position,
+                    change.new_cell,
+                    &registry,
+                    &materials,
+                    &biome,
+                );
             }
         }
     }
@@ -261,6 +269,10 @@ fn player_render(
         limb_swing_amount: animation.limb_swing_amount,
         head_pitch: rendered.pitch,
         head_yaw,
+        dig_amount: animation.dig_amount,
+        dig_phase: animation.dig_phase,
+        place_amount: animation.place_amount,
+        place_phase: animation.place_phase,
     });
     Some(PlayerRender {
         base,

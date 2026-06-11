@@ -6,7 +6,8 @@ use hecs::Entity;
 
 use crate::axes::view_forward;
 use crate::components::{
-    Collider, DisplayedPlayerView, LocomotionState, Mounted, NetPlayerId, Player, Transform,
+    Collider, DisplayedPlayerView, LocomotionState, Mounted, NetPlayerId, Player,
+    PlayerAnimation, Transform,
 };
 use crate::movement::MC_TICK_DT;
 use crate::events::BlockChangeIntent;
@@ -113,6 +114,9 @@ pub fn block_interaction_system(ctx: &mut SystemContext<'_>) {
         });
         if let Ok(mut locomotion) = ctx.world.get::<&mut LocomotionState>(player_entity) {
             locomotion.place_cooldown = place_cooldown_reset;
+        }
+        if let Ok(mut anim) = ctx.world.get::<&mut PlayerAnimation>(player_entity) {
+            anim.trigger_place_swing();
         }
     }
 }

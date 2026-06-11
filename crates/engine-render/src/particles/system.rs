@@ -6,6 +6,7 @@ use crate::camera::Camera;
 use crate::mesh::tint_index_for;
 
 const PARTICLES_PER_BREAK: usize = 60;
+const PARTICLES_PER_PLACE: usize = 6;
 const PARTICLE_LIFETIME: f32 = 1.5;
 const PARTICLE_GRAVITY: f32 = 18.0;
 const MAX_PARTICLES: usize = 2560;
@@ -53,13 +54,56 @@ impl ParticleSystem {
         if cell.id == 0 || !registry.is_breakable(cell.id) {
             return;
         }
+        self.spawn_block_burst(
+            block_pos,
+            cell,
+            PARTICLES_PER_BREAK,
+            0,
+            1.0,
+            materials,
+            biome,
+        );
+    }
 
+    pub fn spawn_block_place(
+        &mut self,
+        block_pos: BlockPos,
+        cell: VoxelCell,
+        registry: &BlockRegistry,
+        materials: &ResolvedBlockMaterials,
+        biome: &BiomeMap,
+    ) {
+        if cell.id == 0 || !registry.is_solid(cell.id) {
+            return;
+        }
+        self.spawn_block_burst(
+            block_pos,
+            cell,
+            PARTICLES_PER_PLACE,
+            0x9e37_79b9,
+            1.0,
+            materials,
+            biome,
+        );
+    }
+
+    fn spawn_block_burst(
+        &mut self,
+        block_pos: BlockPos,
+        cell: VoxelCell,
+        count: usize,
+        seed_salt: u32,
+        velocity_scale: f32,
+        materials: &ResolvedBlockMaterials,
+        biome: &BiomeMap,
+    ) {
         let center = block_pos.0.as_vec3() + Vec3::splat(0.5);
         let seed_base = block_pos.0.x as u32
             ^ (block_pos.0.y as u32).wrapping_mul(374761393)
-            ^ (block_pos.0.z as u32).wrapping_mul(668265263);
+            ^ (block_pos.0.z as u32).wrapping_mul(668265263)
+            ^ seed_salt;
 
-        for i in 0..PARTICLES_PER_BREAK {
+        for i in 0..count {
             let i = i as u32;
             if self.particles.len() >= MAX_PARTICLES {
                 return;
@@ -79,8 +123,8 @@ impl ParticleSystem {
                 hash_f32(seed_base, i * 3 + 2) - 0.5,
             ) * 0.35;
             let dir = jitter.normalize_or_zero();
-            let speed = 1.5 + hash_f32(seed_base, i * 5) * 3.5;
-            let upward = 1.0 + hash_f32(seed_base, i * 7) * 2.5;
+            let speed = (1.5 + hash_f32(seed_base, i * 5) * 3.5) * velocity_scale;
+            let upward = (1.0 + hash_f32(seed_base, i * 7) * 2.5) * velocity_scale;
 
             self.particles.push(Particle {
                 position: center + jitter * 0.2,

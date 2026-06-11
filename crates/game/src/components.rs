@@ -98,6 +98,16 @@ pub struct PlayerAnimation {
     pub limb_swing_amount: f32,
     /// Horizontal facing used for the torso (Z rotation); head turns ahead of this.
     pub body_yaw: f32,
+    /// Blend weight for the right-arm digging pose (0 = walk, 1 = dig).
+    pub dig_amount: f32,
+    /// Phase of the digging oval swing (radians).
+    pub dig_phase: f32,
+    /// Blend weight for the right-arm place pose (0 = walk, 1 = place swing).
+    pub place_amount: f32,
+    /// Phase of the place oval swing (radians).
+    pub place_phase: f32,
+    /// Radians left in the current one-shot place swing (0 = idle).
+    pub place_loop_remaining: f32,
 }
 
 impl Default for PlayerAnimation {
@@ -106,7 +116,20 @@ impl Default for PlayerAnimation {
             limb_swing: 0.0,
             limb_swing_amount: 0.0,
             body_yaw: 0.0,
+            dig_amount: 0.0,
+            dig_phase: 0.0,
+            place_amount: 0.0,
+            place_phase: 0.0,
+            place_loop_remaining: 0.0,
         }
+    }
+}
+
+impl PlayerAnimation {
+    pub fn trigger_place_swing(&mut self) {
+        use std::f32::consts::TAU;
+        self.place_phase = 0.0;
+        self.place_loop_remaining = TAU;
     }
 }
 
