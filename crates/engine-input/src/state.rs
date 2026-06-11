@@ -54,11 +54,8 @@ fn apply_keyboard(input: &mut InputState, event: &KeyEvent) {
         KeyCode::Space => input.ascend = pressed,
         KeyCode::ControlLeft | KeyCode::ControlRight => input.descend = pressed,
         KeyCode::ShiftLeft | KeyCode::ShiftRight => input.sprint = pressed,
-        KeyCode::KeyE => {
-            if pressed {
-                input.interact = true;
-            }
-        }
+        KeyCode::KeyF if pressed => input.interact = true,
+        KeyCode::KeyE if pressed => input.toggle_inventory = true,
         KeyCode::KeyM => {
             if pressed {
                 input.toggle_play_mode = true;

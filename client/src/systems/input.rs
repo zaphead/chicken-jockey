@@ -5,7 +5,7 @@ use game::{
     PlayerInputs, Transform,
 };
 
-use crate::systems::menu::{PauseMenu, PauseScreen};
+use crate::systems::ui_state::ClientUiState;
 
 pub struct PendingWinitInput(pub InputState);
 
@@ -61,12 +61,12 @@ pub fn sync_local_input_system(ctx: &mut SystemContext<'_>) {
         .resources
         .get::<ActivePlayMode>()
         .is_none_or(|mode| mode.0 == PlayMode::Survival);
-    let menu_open = ctx
+    let modal_open = ctx
         .resources
-        .get::<PauseMenu>()
-        .is_some_and(|menu| menu.screen != PauseScreen::Closed);
+        .get::<ClientUiState>()
+        .is_some_and(|ui| ui.blocks_world());
 
-    let gameplay = if menu_open {
+    let gameplay = if modal_open {
         GameplayInput::default()
     } else {
         GameplayInput {

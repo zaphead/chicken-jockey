@@ -29,30 +29,55 @@ pub struct DisplayedPlayerView {
     pub valid: bool,
 }
 
+pub const HOTBAR_SLOTS: usize = 9;
+pub const MAIN_INVENTORY_SLOTS: usize = 27;
+pub const INVENTORY_SLOTS: usize = HOTBAR_SLOTS + MAIN_INVENTORY_SLOTS;
+
 #[derive(Debug, Clone, Copy)]
-pub struct HeldTool {
-    pub slots: [Option<ToolId>; 9],
-    pub selected: u8,
+pub struct PlayerInventory {
+    pub slots: [Option<ToolId>; INVENTORY_SLOTS],
+    pub selected_hotbar: u8,
 }
 
-impl Default for HeldTool {
+impl Default for PlayerInventory {
     fn default() -> Self {
         Self {
-            slots: [None; 9],
-            selected: 0,
+            slots: [None; INVENTORY_SLOTS],
+            selected_hotbar: 0,
         }
     }
 }
 
-impl HeldTool {
+impl PlayerInventory {
     pub fn starter_loadout(pickaxe_id: ToolId) -> Self {
-        let mut slots = [None; 9];
+        let mut slots = [None; INVENTORY_SLOTS];
         slots[1] = Some(pickaxe_id);
-        Self { slots, selected: 0 }
+        Self {
+            slots,
+            selected_hotbar: 0,
+        }
     }
 
     pub fn active_tool(&self) -> Option<ToolId> {
-        self.slots[self.selected as usize]
+        self.slots[self.selected_hotbar as usize]
+    }
+
+    pub fn slot(&self, index: usize) -> Option<ToolId> {
+        self.slots.get(index).copied().flatten()
+    }
+
+    pub fn set_slot(&mut self, index: usize, item: Option<ToolId>) {
+        if let Some(slot) = self.slots.get_mut(index) {
+            *slot = item;
+        }
+    }
+
+    pub fn hotbar_slot_index(hotbar: usize) -> usize {
+        hotbar
+    }
+
+    pub fn main_slot_index(main: usize) -> usize {
+        HOTBAR_SLOTS + main
     }
 }
 

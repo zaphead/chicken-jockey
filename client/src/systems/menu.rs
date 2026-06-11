@@ -1,10 +1,11 @@
 use engine_core::SystemContext;
-use engine_render::{GuiButton, GuiFrame, GuiLabel, GuiPanel, GuiRect, RenderSurfaceInfo, RenderWorld};
+use engine_render::{GuiButton, GuiFrame, GuiLabel, GuiPanel, GuiRect, RenderSurfaceInfo};
 use game::{DayNightCycle, DEFAULT_DAY_LENGTH_SECS};
 
 use engine_render::screen_text::{widget_centered_x, widget_centered_y};
 
 use crate::systems::input::PendingWinitInput;
+use crate::systems::ui_state::{ClientModal, ClientUiState};
 
 const BUTTON_W: f32 = 200.0;
 const BUTTON_H: f32 = 20.0;
@@ -31,11 +32,6 @@ enum MenuHit {
     DayLengthUp,
     GuiScaleDown,
     GuiScaleUp,
-}
-
-#[derive(Debug, Default)]
-pub struct PauseMenu {
-    pub screen: PauseScreen,
 }
 
 #[derive(Debug, Clone)]
@@ -68,16 +64,23 @@ pub fn pause_menu_input_system(ctx: &mut SystemContext<'_>) {
         .unwrap_or_default();
 
     if toggle_pause {
-        let menu = ctx.resources.get_mut::<PauseMenu>().expect("pause menu");
-        menu.screen = match menu.screen {
-            PauseScreen::Closed => PauseScreen::Main,
-            PauseScreen::Main => PauseScreen::Closed,
-            PauseScreen::Settings => PauseScreen::Main,
+        let ui = ctx.resources.get_mut::<ClientUiState>().expect("client ui");
+        ui.carried = None;
+        ui.modal = match ui.modal {
+            ClientModal::Inventory => ClientModal::None,
+            ClientModal::Pause(PauseScreen::Main) => ClientModal::None,
+            ClientModal::Pause(PauseScreen::Settings) => ClientModal::Pause(PauseScreen::Main),
+            ClientModal::None => ClientModal::Pause(PauseScreen::Main),
+            ClientModal::Pause(PauseScreen::Closed) => ClientModal::None,
         };
     }
 
-    let open = menu_open(ctx);
-    if open && menu_click {
+    let pause_screen = ctx
+        .resources
+        .get::<ClientUiState>()
+        .and_then(|ui| ui.pause_screen());
+    if let Some(screen) = pause_screen {
+        if menu_click {
         let surface = ctx
             .resources
             .get::<RenderSurfaceInfo>()
@@ -93,52 +96,47 @@ pub fn pause_menu_input_system(ctx: &mut SystemContext<'_>) {
             .get::<DayNightCycle>()
             .map(|cycle| cycle.day_length_secs)
             .unwrap_or(DEFAULT_DAY_LENGTH_SECS);
-        let menu = ctx.resources.get::<PauseMenu>().expect("pause menu");
-        let layout = build_layout(menu, &settings, day_length, surface, cursor_pos);
+        let layout = build_layout(screen, &settings, day_length, surface, cursor_pos);
         if let Some(hit) = layout.hit_at(cursor_pos.x, cursor_pos.y) {
             apply_hit(ctx, hit);
         }
+        }
     }
 
+    let blocks_world = ctx
+        .resources
+        .get::<ClientUiState>()
+        .is_some_and(|ui| ui.blocks_world());
     if let Some(grab) = ctx.resources.get_mut::<CursorGrabRequest>() {
-        grab.locked = !open;
+        grab.locked = !blocks_world;
     }
 }
 
-pub fn extract_pause_gui_system(ctx: &mut SystemContext<'_>) {
-    let surface = ctx
-        .resources
-        .get::<RenderSurfaceInfo>()
-        .copied()
-        .unwrap_or_default();
-    let settings = ctx
-        .resources
-        .get::<ClientSettings>()
-        .cloned()
-        .unwrap_or_default();
+pub(crate) struct PauseLayer {
+    pub dim_background: bool,
+    pub panels: Vec<GuiPanel>,
+    pub buttons: Vec<GuiButton>,
+    pub labels: Vec<GuiLabel>,
+}
+
+pub(crate) fn build_pause_layout(
+    ctx: &SystemContext<'_>,
+    screen: PauseScreen,
+    settings: &ClientSettings,
+    surface: RenderSurfaceInfo,
+    cursor: glam::Vec2,
+) -> PauseLayer {
     let day_length = ctx
         .resources
         .get::<DayNightCycle>()
         .map(|cycle| cycle.day_length_secs)
         .unwrap_or(DEFAULT_DAY_LENGTH_SECS);
-    let menu_screen = ctx
-        .resources
-        .get::<PauseMenu>()
-        .map(|menu| menu.screen)
-        .unwrap_or(PauseScreen::Closed);
-    let menu = PauseMenu {
-        screen: menu_screen,
-    };
-    let cursor = ctx
-        .resources
-        .get::<PendingWinitInput>()
-        .map(|pending| pending.0.cursor_pos)
-        .unwrap_or_default();
-
-    let layout = build_layout(&menu, &settings, day_length, surface, cursor);
-    if let Some(world) = ctx.resources.get_mut::<RenderWorld>() {
-        world.gui_scale = settings.gui_scale;
-        world.gui = layout.frame;
+    let layout = build_layout(screen, settings, day_length, surface, cursor);
+    PauseLayer {
+        dim_background: layout.frame.dim_background,
+        panels: layout.frame.panels,
+        buttons: layout.frame.buttons,
+        labels: layout.frame.labels,
     }
 }
 
@@ -157,27 +155,21 @@ impl MenuLayout {
     }
 }
 
-fn menu_open(ctx: &SystemContext<'_>) -> bool {
-    ctx.resources
-        .get::<PauseMenu>()
-        .is_some_and(|menu| menu.screen != PauseScreen::Closed)
-}
-
 fn apply_hit(ctx: &mut SystemContext<'_>, hit: MenuHit) {
     match hit {
         MenuHit::Resume => {
-            if let Some(menu) = ctx.resources.get_mut::<PauseMenu>() {
-                menu.screen = PauseScreen::Closed;
+            if let Some(ui) = ctx.resources.get_mut::<ClientUiState>() {
+                ui.modal = ClientModal::None;
             }
         }
         MenuHit::Settings => {
-            if let Some(menu) = ctx.resources.get_mut::<PauseMenu>() {
-                menu.screen = PauseScreen::Settings;
+            if let Some(ui) = ctx.resources.get_mut::<ClientUiState>() {
+                ui.modal = ClientModal::Pause(PauseScreen::Settings);
             }
         }
         MenuHit::Back => {
-            if let Some(menu) = ctx.resources.get_mut::<PauseMenu>() {
-                menu.screen = PauseScreen::Main;
+            if let Some(ui) = ctx.resources.get_mut::<ClientUiState>() {
+                ui.modal = ClientModal::Pause(PauseScreen::Main);
             }
         }
         MenuHit::DayLengthDown | MenuHit::DayLengthUp => {
@@ -223,7 +215,7 @@ fn step_preset(current: f32, presets: &[f32], up: bool) -> f32 {
 }
 
 fn build_layout(
-    menu: &PauseMenu,
+    screen: PauseScreen,
     settings: &ClientSettings,
     day_length_secs: f32,
     surface: RenderSurfaceInfo,
@@ -231,13 +223,6 @@ fn build_layout(
 ) -> MenuLayout {
     let width = surface.width.max(1);
     let height = surface.height.max(1);
-    if menu.screen == PauseScreen::Closed {
-        return MenuLayout {
-            frame: GuiFrame::default(),
-            hits: Vec::new(),
-        };
-    }
-
     let scale = settings.gui_scale;
     let sw = width as f32;
     let sh = height as f32;
@@ -255,7 +240,7 @@ fn build_layout(
     };
     let mut hits = Vec::new();
 
-    match menu.screen {
+    match screen {
         PauseScreen::Closed => {}
         PauseScreen::Main => {
             let panel_h = pad * 2.0 + btn_h * 2.0 + gap;

@@ -1,6 +1,6 @@
 use engine_core::SystemContext;
 
-use crate::components::{HeldTool, NetPlayerId, Player};
+use crate::components::{NetPlayerId, Player, PlayerInventory};
 use crate::input::resolve_input;
 use crate::play_mode::{ActivePlayMode, PlayMode};
 
@@ -24,8 +24,8 @@ pub fn held_tool_select_system(ctx: &mut SystemContext<'_>) {
         let Some(input) = resolve_input(ctx, net_id) else {
             continue;
         };
-        if let Ok(mut held) = ctx.world.get::<&mut HeldTool>(entity) {
-            held.selected = input.tool_slot.min(8);
+        if let Ok(mut inventory) = ctx.world.get::<&mut PlayerInventory>(entity) {
+            inventory.selected_hotbar = input.tool_slot.min(8);
         }
     }
 }

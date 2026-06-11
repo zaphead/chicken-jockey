@@ -20,7 +20,7 @@ mod renderer;
 mod world_mesh;
 
 pub use camera::Camera;
-pub use gui::{GuiButton, GuiFrame, GuiLabel, GuiPanel, GuiPipeline, GuiRect};
+pub use gui::{GuiButton, GuiFrame, GuiLabel, GuiPanel, GuiPipeline, GuiRect, GuiSpriteInstance};
 pub use hud::HudPipeline;
 pub use extract::{MiningOverlay, RenderExtractState, RenderSurfaceInfo, RenderWorld};
 pub use lighting::LightingSnapshot;

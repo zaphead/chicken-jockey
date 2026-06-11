@@ -2,7 +2,8 @@ use engine_assets::ToolRegistry;
 use engine_core::SystemContext;
 use engine_render::{extract_render_scene, Renderer, RenderWorld};
 use game::{
-    local_player_entity, tool_label_for_held, ActiveDebugWorld, ActivePlayMode, HeldTool, Velocity,
+    local_player_entity, tool_label_for_inventory, ActiveDebugWorld, ActivePlayMode, PlayerInventory,
+    Velocity,
 };
 use glam::Vec3;
 
@@ -19,9 +20,13 @@ pub fn present_frame_system(ctx: &mut SystemContext<'_>) {
         .map(|velocity| velocity.0)
         .unwrap_or(Vec3::ZERO);
     let tool_label = local_player
-        .and_then(|entity| ctx.world.get::<&HeldTool>(entity).ok())
-        .and_then(|held| ctx.resources.get::<ToolRegistry>().map(|tools| (held, tools)))
-        .map(|(held, tools)| tool_label_for_held(&held, tools))
+        .and_then(|entity| ctx.world.get::<&PlayerInventory>(entity).ok())
+        .and_then(|inventory| {
+            ctx.resources
+                .get::<ToolRegistry>()
+                .map(|tools| (inventory, tools))
+        })
+        .map(|(inventory, tools)| tool_label_for_inventory(&inventory, tools))
         .unwrap_or_else(|| "hand".to_string());
 
     let presented = ctx
@@ -59,10 +64,10 @@ pub fn present_frame_system(ctx: &mut SystemContext<'_>) {
                 world.particles.clone(),
                 world.lighting,
             );
-            let gui = if world.gui.is_empty() {
-                None
-            } else {
+            let gui = if world.gui.needs_gui_pass() {
                 Some(&world.gui)
+            } else {
+                None
             };
             let gui_scale = world.gui_scale.max(0.25);
             if let Err(error) = renderer.0.render(&scene, Some(&hud_text), gui_scale, gui) {

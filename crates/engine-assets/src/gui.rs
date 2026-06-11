@@ -13,6 +13,13 @@ pub struct NineSliceSprite {
     pub border_bottom: u32,
 }
 
+#[derive(Debug, Clone, Copy)]
+pub struct GuiSprite {
+    pub uv: UvRect,
+    pub width: u32,
+    pub height: u32,
+}
+
 #[derive(Debug, Clone)]
 pub struct GuiTextures {
     pub atlas: TextureAtlas,
@@ -20,6 +27,10 @@ pub struct GuiTextures {
     pub button: NineSliceSprite,
     pub button_highlighted: NineSliceSprite,
     pub panel: NineSliceSprite,
+    pub hotbar: GuiSprite,
+    pub hotbar_selection: GuiSprite,
+    pub inventory: GuiSprite,
+    pub slot: GuiSprite,
 }
 
 pub fn gui_asset_path(manifest_dir: &str) -> PathBuf {
@@ -50,14 +61,29 @@ fn pack_gui(dir: &Path) -> Result<GuiTextures, String> {
     let button = load_rgba(&dir.join("button.png"))?;
     let button_highlighted = load_rgba(&dir.join("button_highlighted.png"))?;
     let panel = load_rgba(&dir.join("panel.png"))?;
+    let hotbar = load_rgba(&dir.join("hotbar.png"))?;
+    let hotbar_selection = load_rgba(&dir.join("hotbar_selection.png"))?;
+    let inventory = load_rgba(&dir.join("inventory.png"))?;
+    let slot = load_rgba(&dir.join("slot.png"))?;
 
     let pad = 2u32;
-    let width = button
+    let row_w = button
         .width()
         .max(button_highlighted.width())
         .max(panel.width())
-        + pad * 2;
-    let height = button.height() + button_highlighted.height() + panel.height() + pad * 4;
+        .max(hotbar.width())
+        .max(hotbar_selection.width())
+        .max(inventory.width())
+        .max(slot.width());
+    let width = row_w + pad * 2;
+    let height = button.height()
+        + button_highlighted.height()
+        + panel.height()
+        + hotbar.height()
+        + hotbar_selection.height()
+        + inventory.height()
+        + slot.height()
+        + pad * 8;
 
     let mut atlas = image::RgbaImage::new(width, height);
     atlas.put_pixel(0, 0, image::Rgba([255, 255, 255, 255]));
@@ -74,6 +100,19 @@ fn pack_gui(dir: &Path) -> Result<GuiTextures, String> {
         pad as i64,
         (pad * 2 + button.height() + button_highlighted.height()) as i64,
     );
+    let hotbar_y = pad * 3 + button.height() + button_highlighted.height() + panel.height();
+    image::imageops::overlay(&mut atlas, &hotbar, pad as i64, hotbar_y as i64);
+    let selection_y = hotbar_y + hotbar.height() + pad;
+    image::imageops::overlay(
+        &mut atlas,
+        &hotbar_selection,
+        pad as i64,
+        selection_y as i64,
+    );
+    let inventory_y = selection_y + hotbar_selection.height() + pad;
+    image::imageops::overlay(&mut atlas, &inventory, pad as i64, inventory_y as i64);
+    let slot_y = inventory_y + inventory.height() + pad;
+    image::imageops::overlay(&mut atlas, &slot, pad as i64, slot_y as i64);
 
     let atlas_w = atlas.width();
     let atlas_h = atlas.height();
@@ -133,6 +172,26 @@ fn pack_gui(dir: &Path) -> Result<GuiTextures, String> {
             border_right: 6,
             border_bottom: 6,
         },
+        hotbar: GuiSprite {
+            uv: uv_for(pad, hotbar_y, hotbar.width(), hotbar.height()),
+            width: hotbar.width(),
+            height: hotbar.height(),
+        },
+        hotbar_selection: GuiSprite {
+            uv: uv_for(pad, selection_y, hotbar_selection.width(), hotbar_selection.height()),
+            width: hotbar_selection.width(),
+            height: hotbar_selection.height(),
+        },
+        inventory: GuiSprite {
+            uv: uv_for(pad, inventory_y, inventory.width(), inventory.height()),
+            width: inventory.width(),
+            height: inventory.height(),
+        },
+        slot: GuiSprite {
+            uv: uv_for(pad, slot_y, slot.width(), slot.height()),
+            width: slot.width(),
+            height: slot.height(),
+        },
     })
 }
 
@@ -164,5 +223,25 @@ fn fallback_gui() -> GuiTextures {
         button: slice,
         button_highlighted: slice,
         panel: slice,
+        hotbar: GuiSprite {
+            uv,
+            width: 4,
+            height: 4,
+        },
+        hotbar_selection: GuiSprite {
+            uv,
+            width: 4,
+            height: 4,
+        },
+        inventory: GuiSprite {
+            uv,
+            width: 4,
+            height: 4,
+        },
+        slot: GuiSprite {
+            uv,
+            width: 4,
+            height: 4,
+        },
     }
 }

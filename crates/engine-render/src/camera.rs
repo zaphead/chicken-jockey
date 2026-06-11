@@ -36,6 +36,10 @@ impl Camera {
         self.forward().cross(Vec3::Z).normalize()
     }
 
+    pub fn up(&self) -> Vec3 {
+        self.right().cross(self.forward()).normalize()
+    }
+
     pub fn view_matrix(&self) -> Mat4 {
         Mat4::look_to_rh(self.position, self.forward(), Vec3::Z)
     }

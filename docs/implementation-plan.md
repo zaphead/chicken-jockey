@@ -19,7 +19,7 @@
 
 Multiplayer, audio, advanced LOD, and polish are explicitly out of scope until after this loop works locally.
 
-**Current local client:** **Survival** / **Spectator** toggled with **M**; **Tab** cycles debug worlds (**3 blocks** ↔ **rolling hills**). HUD shows mode + world profile + held tool top-left. LMB mines with progress; **1** = hand, **2** = wooden pickaxe. Mobs still deferred (phase 9).
+**Current local client:** **Survival** / **Spectator** toggled with **M**; **Tab** cycles debug worlds (**3 blocks** ↔ **rolling hills**). HUD shows mode + world profile top-left; **hotbar** (Whimscape `hotbar.png` + selection sprite) at bottom in survival; **E** opens survival inventory (`inventory.png`, 27 main + 9 hotbar slots, click to move tools). **F** = interact (mount). LMB mines with progress; **1** = hand, **2** = wooden pickaxe. Mobs still deferred (phase 9).
 
 ---
 

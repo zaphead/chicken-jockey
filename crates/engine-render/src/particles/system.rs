@@ -111,23 +111,25 @@ impl ParticleSystem {
             return ParticleMesh::default();
         }
 
-        let right = camera.right();
-        let up = Vec3::Z;
         let mut mesh = ParticleMesh {
             vertices: Vec::with_capacity(self.particles.len() * 4),
             indices: Vec::with_capacity(self.particles.len() * 6),
         };
 
+        let camera_right = camera.right();
+        let camera_up = camera.up();
+
         for particle in &self.particles {
             let t = particle.age / particle.lifetime;
             let alpha = (1.0 - t * t).clamp(0.0, 1.0);
-            let half = right * particle.size + up * particle.size;
+            let right = camera_right * particle.size;
+            let up = camera_up * particle.size;
             let center = particle.position;
             let corners = [
-                center - half,
-                center + right * particle.size - up * particle.size,
-                center + half,
-                center - right * particle.size + up * particle.size,
+                center - right - up,
+                center + right - up,
+                center + right + up,
+                center - right + up,
             ];
             let uvs = rect_uvs(particle.uv_rect);
             let base = mesh.vertices.len() as u16;

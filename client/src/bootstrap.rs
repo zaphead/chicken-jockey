@@ -15,7 +15,8 @@ use game::{
 };
 
 use crate::systems::input::PendingWinitInput;
-use crate::systems::menu::{ClientSettings, CursorGrabRequest, PauseMenu};
+use crate::systems::menu::{ClientSettings, CursorGrabRequest};
+use crate::systems::ui_state::ClientUiState;
 use crate::systems::interpolation::PreviousPlayerTransform;
 use crate::systems::register_client_schedule;
 use crate::systems::spectator::reset_spectator_for_world;
@@ -43,7 +44,7 @@ pub fn bootstrap_client_shell(app: &mut App) {
     app.insert_resource(DisplayedPlayerView::default());
     app.insert_resource(ActiveDebugWorld::default());
     app.insert_resource(DayNightCycle::default());
-    app.insert_resource(PauseMenu::default());
+    app.insert_resource(ClientUiState::default());
     app.insert_resource(ClientSettings::default());
     app.insert_resource(CursorGrabRequest {
         locked: true,

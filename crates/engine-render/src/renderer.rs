@@ -228,7 +228,7 @@ impl Renderer {
             },
         );
 
-        let menu_open = gui.is_some_and(|frame| !frame.is_empty());
+        let menu_open = gui.is_some_and(|frame| frame.has_menu());
         let scale = gui_scale.max(0.25);
         self.hud.set_text(
             &self.queue,
@@ -238,7 +238,7 @@ impl Renderer {
             scale,
             !menu_open,
         );
-        if let Some(frame) = gui.filter(|gui| !gui.is_empty()) {
+        if let Some(frame) = gui.filter(|gui| gui.needs_gui_pass()) {
             self.gui
                 .set_frame(&self.queue, frame, &self.gui_textures);
         } else {
@@ -403,7 +403,7 @@ impl Renderer {
             self.hud.draw(&mut pass);
         }
 
-        if gui.is_some_and(|frame| !frame.is_empty()) {
+        if gui.is_some_and(|frame| frame.needs_gui_pass()) {
             let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("gui_pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {

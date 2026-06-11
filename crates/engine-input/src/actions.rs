@@ -16,6 +16,7 @@ pub struct InputState {
     pub cursor_pos: Vec2,
     pub toggle_play_mode: bool,
     pub toggle_pause: bool,
+    pub toggle_inventory: bool,
     pub menu_click: bool,
 }
 
@@ -43,6 +44,7 @@ impl InputState {
         self.interact = false;
         self.toggle_play_mode = false;
         self.toggle_pause = false;
+        self.toggle_inventory = false;
         self.menu_click = false;
     }
 }

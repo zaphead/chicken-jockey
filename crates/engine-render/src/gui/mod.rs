@@ -3,7 +3,7 @@ mod frame;
 use bytemuck::{Pod, Zeroable};
 use engine_assets::{GuiTextures, NineSliceSprite, UvRect};
 
-pub use frame::{GuiButton, GuiFrame, GuiLabel, GuiPanel, GuiRect};
+pub use frame::{GuiButton, GuiFrame, GuiLabel, GuiPanel, GuiRect, GuiSpriteInstance};
 
 const MAX_GUI_VERTICES: usize = 4096;
 const GUI_VERTEX_BUFFER_SIZE: u64 =
@@ -173,6 +173,23 @@ impl GuiPipeline {
                 frame.width,
                 frame.height,
                 sprite,
+                WHITE,
+            );
+        }
+
+        for sprite in &frame.sprites {
+            push_textured_quad(
+                &mut vertices,
+                sprite.rect.x,
+                sprite.rect.y,
+                sprite.rect.x + sprite.rect.w,
+                sprite.rect.y + sprite.rect.h,
+                frame.width,
+                frame.height,
+                sprite.uv.min[0],
+                sprite.uv.min[1],
+                sprite.uv.max[0],
+                sprite.uv.max[1],
                 WHITE,
             );
         }

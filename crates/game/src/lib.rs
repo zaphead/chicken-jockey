@@ -20,7 +20,7 @@ pub use axes::{
 };
 pub use components::{DisplayedPlayerView, TerrainGeneration, *};
 pub use events::{BlockChangeIntent, BlockMiningProgress, PlayerStateChanged};
-pub use mining::{destroy_stage, tool_label_for_held};
+pub use mining::{destroy_stage, tool_label_for_inventory};
 pub use input::{
     local_player_entity, resolve_input, GameplayInput, LocalPlayerId, PlayerInputs,
 };

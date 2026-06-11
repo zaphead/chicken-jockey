@@ -46,8 +46,12 @@ pub fn destroy_stage(progress: f32) -> u8 {
     ((progress * 10.0) as u8).min(9)
 }
 
-pub fn tool_label_for_held(held: &crate::components::HeldTool, tools: &ToolRegistry) -> String {
-    held.active_tool()
+pub fn tool_label_for_inventory(
+    inventory: &crate::components::PlayerInventory,
+    tools: &ToolRegistry,
+) -> String {
+    inventory
+        .active_tool()
         .and_then(|id| tools.get(id))
         .map(|tool| tool.name.clone())
         .unwrap_or_else(|| "hand".to_string())

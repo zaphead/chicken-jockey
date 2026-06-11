@@ -4,7 +4,7 @@ use engine_world::{BlockPos, WorldMutationQueue};
 use glam::IVec3;
 
 use crate::components::{
-    BlockMiningState, DisplayedPlayerView, HeldTool, Mounted, NetPlayerId, Player, Transform,
+    BlockMiningState, DisplayedPlayerView, Mounted, NetPlayerId, Player, PlayerInventory, Transform,
 };
 use crate::events::{BlockChangeIntent, BlockMiningProgress};
 use crate::input::{resolve_input, LocalPlayerId};
@@ -79,7 +79,7 @@ pub fn block_mining_system(ctx: &mut SystemContext<'_>) {
         let Ok(mut mining) = ctx.world.get::<&mut BlockMiningState>(player_entity) else {
             continue;
         };
-        let Ok(held) = ctx.world.get::<&HeldTool>(player_entity) else {
+        let Ok(inventory) = ctx.world.get::<&PlayerInventory>(player_entity) else {
             continue;
         };
 
@@ -94,7 +94,7 @@ pub fn block_mining_system(ctx: &mut SystemContext<'_>) {
             mining.progress = 0.0;
         }
 
-        let active_tool = held.active_tool();
+        let active_tool = inventory.active_tool();
         let hardness = registry.hardness(block_id);
         let can_harvest = can_harvest_block(&registry, &tools, block_id, active_tool);
         let efficiency = tool_efficiency(&tools, active_tool);

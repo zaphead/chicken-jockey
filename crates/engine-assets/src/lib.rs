@@ -14,7 +14,7 @@ mod server;
 
 pub use atlas::{textures_asset_path, tile_uv_rect, TextureAtlas, UvRect, DEFAULT_GRID, DEFAULT_TILE_SIZE};
 pub use environment::{environment_asset_path, load_environment_textures, EnvironmentTextures};
-pub use gui::{gui_asset_path, load_gui_textures, GuiTextures, NineSliceSprite};
+pub use gui::{gui_asset_path, load_gui_textures, GuiSprite, GuiTextures, NineSliceSprite};
 pub use blocks::{load_block_registry, BlockDefinition, BlockRegistry};
 pub use tools::{
     load_tool_registry, tools_asset_path, ToolClass, ToolDefinition, ToolId, ToolRegistry,
