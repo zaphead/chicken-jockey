@@ -24,8 +24,19 @@ struct GuiVertex {
 pub struct GuiPipeline {
     pipeline: wgpu::RenderPipeline,
     bind_group: wgpu::BindGroup,
+    bind_group_layout: wgpu::BindGroupLayout,
     vertex_buffer: wgpu::Buffer,
     vertex_count: u32,
+}
+
+impl GuiPipeline {
+    pub fn atlas_bind_group(&self) -> &wgpu::BindGroup {
+        &self.bind_group
+    }
+
+    pub fn atlas_bind_group_layout(&self) -> &wgpu::BindGroupLayout {
+        &self.bind_group_layout
+    }
 }
 
 impl GuiPipeline {
@@ -129,6 +140,7 @@ impl GuiPipeline {
         Self {
             pipeline,
             bind_group,
+            bind_group_layout: bind_group_layout.clone(),
             vertex_buffer,
             vertex_count: 0,
         }

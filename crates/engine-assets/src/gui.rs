@@ -1,6 +1,9 @@
+use std::collections::HashMap;
+use std::fs;
 use std::path::{Path, PathBuf};
 
 use crate::atlas::{TextureAtlas, UvRect};
+use crate::layouts::FACE_SIZE;
 
 #[derive(Debug, Clone, Copy)]
 pub struct NineSliceSprite {
@@ -31,6 +34,7 @@ pub struct GuiTextures {
     pub hotbar_selection: GuiSprite,
     pub inventory: GuiSprite,
     pub slot: GuiSprite,
+    pub item_icons: HashMap<String, UvRect>,
 }
 
 pub fn gui_asset_path(manifest_dir: &str) -> PathBuf {
@@ -114,6 +118,13 @@ fn pack_gui(dir: &Path) -> Result<GuiTextures, String> {
     let slot_y = inventory_y + inventory.height() + pad;
     image::imageops::overlay(&mut atlas, &slot, pad as i64, slot_y as i64);
 
+    let items_dir = dir.parent().map(|parent| parent.join("items"));
+    let item_icons = items_dir
+        .as_ref()
+        .map(|items| pack_item_icons(&mut atlas, items))
+        .transpose()?
+        .unwrap_or_default();
+
     let atlas_w = atlas.width();
     let atlas_h = atlas.height();
     let pixels = atlas.into_raw();
@@ -192,7 +203,87 @@ fn pack_gui(dir: &Path) -> Result<GuiTextures, String> {
             width: slot.width(),
             height: slot.height(),
         },
+        item_icons,
     })
+}
+
+fn pack_item_icons(
+    atlas: &mut image::RgbaImage,
+    items_dir: &Path,
+) -> Result<HashMap<String, UvRect>, String> {
+    if !items_dir.is_dir() {
+        return Ok(HashMap::new());
+    }
+
+    let mut names = Vec::new();
+    for entry in fs::read_dir(items_dir)
+        .map_err(|error| format!("read {}: {error}", items_dir.display()))?
+    {
+        let entry = entry.map_err(|error| format!("read {}: {error}", items_dir.display()))?;
+        let path = entry.path();
+        if path.extension().and_then(|ext| ext.to_str()) != Some("png") {
+            continue;
+        }
+        let Some(stem) = path.file_stem().and_then(|stem| stem.to_str()) else {
+            continue;
+        };
+        names.push((stem.to_string(), path));
+    }
+    names.sort_by(|left, right| left.0.cmp(&right.0));
+    if names.is_empty() {
+        return Ok(HashMap::new());
+    }
+
+    let pad = 2u32;
+    let icon = FACE_SIZE;
+    let cols = ((atlas.width().saturating_sub(pad)) / (icon + pad)).max(1);
+    let rows = names.len().div_ceil(cols as usize) as u32;
+    let row_h = rows * (icon + pad) + pad;
+    let needed_w = pad * 2 + cols * (icon + pad) - pad;
+    let new_w = atlas.width().max(needed_w);
+    let new_h = atlas.height() + row_h;
+    let mut grown = image::RgbaImage::new(new_w, new_h);
+    image::imageops::overlay(&mut grown, atlas, 0, 0);
+    *atlas = grown;
+
+    let base_y = new_h - row_h + pad;
+    let atlas_w = atlas.width();
+    let atlas_h = atlas.height();
+    let mut item_icons = HashMap::with_capacity(names.len());
+
+    for (index, (name, path)) in names.into_iter().enumerate() {
+        let col = (index as u32) % cols;
+        let row = (index as u32) / cols;
+        let x = pad + col * (icon + pad);
+        let y = base_y + row * (icon + pad);
+        let image = load_rgba(&path)?;
+        if image.width() != icon || image.height() != icon {
+            return Err(format!(
+                "item icon {} must be {icon}×{icon} (got {}×{})",
+                path.display(),
+                image.width(),
+                image.height()
+            ));
+        }
+        image::imageops::overlay(atlas, &image, x as i64, y as i64);
+        let inset_u = 0.5 / atlas_w as f32;
+        let inset_v = 0.5 / atlas_h as f32;
+        item_icons.insert(
+            name,
+            UvRect {
+                min: [
+                    x as f32 / atlas_w as f32 + inset_u,
+                    y as f32 / atlas_h as f32 + inset_v,
+                ],
+                max: [
+                    (x + icon) as f32 / atlas_w as f32 - inset_u,
+                    (y + icon) as f32 / atlas_h as f32 - inset_v,
+                ],
+            },
+        );
+    }
+
+    Ok(item_icons)
 }
 
 fn fallback_gui() -> GuiTextures {
@@ -243,5 +334,6 @@ fn fallback_gui() -> GuiTextures {
             width: 4,
             height: 4,
         },
+        item_icons: HashMap::new(),
     }
 }

@@ -35,6 +35,17 @@ fn default_ctm_tile_count() -> u8 {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+pub struct DropSpec {
+    pub item: String,
+    #[serde(default = "default_drop_count")]
+    pub count: u16,
+}
+
+fn default_drop_count() -> u16 {
+    1
+}
+
+#[derive(Debug, Clone, Deserialize)]
 pub struct BlockDefinition {
     pub id: BlockId,
     pub name: String,
@@ -59,6 +70,8 @@ pub struct BlockDefinition {
     pub preferred_tool: Option<ToolClass>,
     #[serde(default)]
     pub requires_tool: bool,
+    #[serde(default)]
+    pub drops: Vec<DropSpec>,
 }
 
 fn default_hardness() -> f32 {
@@ -132,6 +145,12 @@ impl BlockRegistry {
 
     pub fn definitions(&self) -> impl Iterator<Item = &BlockDefinition> {
         self.by_id.values()
+    }
+
+    pub fn drops(&self, id: BlockId) -> &[DropSpec] {
+        self.get(id)
+            .map(|block| block.drops.as_slice())
+            .unwrap_or(&[])
     }
 }
 

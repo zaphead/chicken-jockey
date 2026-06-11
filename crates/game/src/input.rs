@@ -3,6 +3,8 @@ use std::collections::HashMap;
 use engine_core::SystemContext;
 use glam::Vec2;
 
+use crate::inventory::DropAmount;
+
 #[derive(Debug, Default, Clone)]
 pub struct GameplayInput {
     pub move_axis: Vec2,
@@ -14,6 +16,7 @@ pub struct GameplayInput {
     pub break_block: bool,
     pub place_block: bool,
     pub tool_slot: u8,
+    pub drop_hotbar: Option<DropAmount>,
 }
 
 impl GameplayInput {
@@ -23,6 +26,7 @@ impl GameplayInput {
         self.interact = false;
         self.break_block = false;
         self.place_block = false;
+        self.drop_hotbar = None;
     }
 }
 

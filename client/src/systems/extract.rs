@@ -22,6 +22,8 @@ use crate::systems::interpolation::{
     lerp_transform_snapshot, PreviousPlayerTransform, TransformSnapshot,
 };
 use crate::systems::spectator::SpectatorCamera;
+use crate::systems::extract_items::build_render_item_drops;
+use crate::systems::zoom::{apply_zoom_to_camera, CameraZoom};
 
 pub fn sync_block_changes_system(ctx: &mut SystemContext<'_>) {
     let changes: Vec<VoxelChanged> = ctx.events.drain::<VoxelChanged>();
@@ -99,7 +101,10 @@ pub fn extract_render_world_system(ctx: &mut SystemContext<'_>) {
         .unwrap_or(16.0 / 9.0);
     let survival = survival_player_snapshot(ctx);
 
-    let camera = extract_camera(ctx, aspect, survival);
+    let mut camera = extract_camera(ctx, aspect, survival);
+    if let Some(zoom) = ctx.resources.get::<CameraZoom>() {
+        apply_zoom_to_camera(&mut camera, zoom);
+    }
     if let Some(rendered) = survival {
         let eye = player_view_position(rendered.position, rendered.yaw);
         if let Some(view) = ctx.resources.get_mut::<DisplayedPlayerView>() {
@@ -203,6 +208,7 @@ pub fn extract_render_world_system(ctx: &mut SystemContext<'_>) {
         .unwrap_or_default();
 
     let player = player_render(ctx, survival);
+    let (item_drops, item_drop_generation) = build_render_item_drops(ctx, &camera, animation_tick);
 
     if let Some(render_world) = ctx.resources.get_mut::<RenderWorld>() {
         render_world.camera = camera;
@@ -216,6 +222,8 @@ pub fn extract_render_world_system(ctx: &mut SystemContext<'_>) {
         render_world.target_block = target_block;
         render_world.mining_overlay = mining_overlay;
         render_world.player = player;
+        render_world.item_drops = item_drops;
+        render_world.item_drop_generation = item_drop_generation;
         render_world.ready = true;
     }
 }

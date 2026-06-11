@@ -1,25 +1,38 @@
 use engine_core::SystemContext;
 use engine_net::{BlockDelta, ClientPacket, EntitySnapshot, NetClient, PlayerInput, ServerPacket};
 use engine_world::{BlockPos, BlockState, VoxelCell, WorldMutationQueue};
-use game::{LocalPlayerId, NetPlayerId, Transform, Velocity};
+use game::{drop_amount_to_wire, LocalPlayerId, NetPlayerId, Transform, Velocity};
 use glam::Vec3;
 
 use crate::systems::input::PendingWinitInput;
+use crate::systems::net_items::{apply_inventory_sync, apply_world_items};
+use crate::systems::pending_inventory::PendingInventoryActions;
 
 pub struct ClientNet(pub NetClient);
 
 pub fn client_net_system(ctx: &mut SystemContext<'_>) {
-    let Some(net) = ctx.resources.get::<ClientNet>() else {
+    let Some(pending) = ctx.resources.get::<PendingWinitInput>() else {
         return;
     };
-    let Some(pending) = ctx.resources.get::<PendingWinitInput>() else {
+
+    let input_packet = input_to_packet(ctx, &pending.0);
+    let inventory_actions = ctx
+        .resources
+        .get_mut::<PendingInventoryActions>()
+        .map(|actions| actions.drain())
+        .unwrap_or_default();
+
+    let Some(net) = ctx.resources.get::<ClientNet>() else {
         return;
     };
 
     if net.0.player_id().is_none() {
         net.0.send(ClientPacket::Join);
     } else {
-        net.0.send(ClientPacket::Input(input_to_packet(&pending.0)));
+        net.0.send(ClientPacket::Input(input_packet));
+        if !inventory_actions.is_empty() {
+            net.0.send(ClientPacket::InventoryActions(inventory_actions));
+        }
     }
 
     for packet in net.0.drain_inbound() {
@@ -31,6 +44,8 @@ pub fn client_net_system(ctx: &mut SystemContext<'_>) {
             }
             ServerPacket::BlockDeltas(deltas) => apply_block_deltas(ctx, deltas),
             ServerPacket::EntitySnapshots(snapshots) => reconcile_snapshots(ctx, snapshots),
+            ServerPacket::WorldItems(items) => apply_world_items(ctx, items),
+            ServerPacket::InventorySync(sync) => apply_inventory_sync(ctx, sync),
         }
     }
 }
@@ -90,7 +105,19 @@ fn reconcile_snapshots(ctx: &mut SystemContext<'_>, snapshots: Vec<EntitySnapsho
     }
 }
 
-fn input_to_packet(input: &engine_input::InputState) -> PlayerInput {
+fn input_to_packet(ctx: &SystemContext<'_>, input: &engine_input::InputState) -> PlayerInput {
+    let drop_hotbar = ctx
+        .resources
+        .get::<game::PlayerInputs>()
+        .and_then(|inputs| {
+            ctx.resources
+                .get::<LocalPlayerId>()
+                .and_then(|local| local.id)
+                .and_then(|id| inputs.get(id))
+        })
+        .and_then(|gameplay| gameplay.drop_hotbar)
+        .map(drop_amount_to_wire);
+
     PlayerInput {
         move_axis: input.move_axis,
         look_delta: input.look_delta,
@@ -99,5 +126,6 @@ fn input_to_packet(input: &engine_input::InputState) -> PlayerInput {
         break_block: input.break_held,
         place_block: input.place_held,
         tool_slot: input.selected_tool_slot,
+        drop_hotbar,
     }
 }

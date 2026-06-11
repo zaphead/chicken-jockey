@@ -14,14 +14,8 @@ use crate::movement::{
     apply_vertical_post_move, jump_cooldown_sim_steps, update_horizontal_velocity,
     wish_direction_horizontal, JUMP_VELOCITY, McMovementInput, MC_TICK_DT,
 };
-use crate::play_mode::{ActivePlayMode, PlayMode};
+use crate::play_mode::survival_active;
 use crate::systems::physics::collision::collides_aabb;
-
-fn survival_active(ctx: &SystemContext<'_>) -> bool {
-    ctx.resources
-        .get::<ActivePlayMode>()
-        .is_none_or(|mode| mode.0 == PlayMode::Survival)
-}
 
 pub fn player_look_system(ctx: &mut SystemContext<'_>) {
     if !survival_active(ctx) {

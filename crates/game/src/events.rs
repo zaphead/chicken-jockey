@@ -16,6 +16,14 @@ pub struct BlockMiningProgress {
     pub progress: f32,
 }
 
+/// Emitted when a block is fully mined. Drop resolution uses `harvested`.
+#[derive(Debug, Clone, Copy)]
+pub struct BlockBroken {
+    pub position: BlockPos,
+    pub block_id: BlockId,
+    pub harvested: bool,
+}
+
 /// Emitted after player transform changes for net translation.
 #[derive(Debug, Clone, Copy)]
 pub struct PlayerStateChanged {

@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use engine_assets::{GuiTextures, ToolRegistry};
+use engine_assets::{BlockRegistry, GuiTextures, ToolRegistry};
 use engine_core::SystemContext;
 use engine_render::{GuiFrame, RenderSurfaceInfo, RenderWorld};
 use game::{local_player_entity, ActivePlayMode, PlayMode, PlayerInventory};
@@ -49,6 +49,7 @@ pub fn extract_client_gui_system(ctx: &mut SystemContext<'_>) {
             .map(|inventory| *inventory)
     });
     let tools = ctx.resources.get::<ToolRegistry>();
+    let blocks = ctx.resources.get::<BlockRegistry>();
 
     let mut frame = GuiFrame {
         width: surface.width.max(1),
@@ -72,6 +73,7 @@ pub fn extract_client_gui_system(ctx: &mut SystemContext<'_>) {
                 &textures,
                 surface,
                 inventory,
+                blocks,
                 tools,
                 cursor,
                 ui.carried,
@@ -81,7 +83,7 @@ pub fn extract_client_gui_system(ctx: &mut SystemContext<'_>) {
 
     if survival && matches!(ui.modal, ClientModal::None) {
         if let Some(inventory) = inventory.as_ref() {
-            append_hotbar(&mut frame, &textures, surface, inventory, tools);
+            append_hotbar(&mut frame, &textures, surface, inventory, blocks, tools);
         }
     }
 

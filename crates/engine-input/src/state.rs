@@ -54,6 +54,7 @@ fn apply_keyboard(input: &mut InputState, event: &KeyEvent) {
         KeyCode::Space => input.ascend = pressed,
         KeyCode::ControlLeft | KeyCode::ControlRight => input.descend = pressed,
         KeyCode::ShiftLeft | KeyCode::ShiftRight => input.sprint = pressed,
+        KeyCode::KeyZ => input.zoom_held = pressed,
         KeyCode::KeyF if pressed => input.interact = true,
         KeyCode::KeyE if pressed => input.toggle_inventory = true,
         KeyCode::KeyM => {
@@ -71,6 +72,15 @@ fn apply_keyboard(input: &mut InputState, event: &KeyEvent) {
         KeyCode::Digit8 if pressed => input.selected_tool_slot = 7,
         KeyCode::Digit9 if pressed => input.selected_tool_slot = 8,
         KeyCode::Escape if pressed => input.toggle_pause = true,
+        KeyCode::KeyQ if pressed => {
+            input.drop_hotbar = Some(if input.descend {
+                crate::actions::DropHotbarRequest::All
+            } else if input.sprint {
+                crate::actions::DropHotbarRequest::Half
+            } else {
+                crate::actions::DropHotbarRequest::One
+            });
+        }
         _ => {}
     }
 }

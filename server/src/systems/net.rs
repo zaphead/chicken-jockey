@@ -1,7 +1,10 @@
 use engine_core::SystemContext;
-use engine_net::{BlockDelta, ClientPacket, EntitySnapshot, NetServer, PlayerInput, ServerPacket};
+use engine_net::{BlockDelta, ClientPacket, EntitySnapshot, InventoryAction, NetServer, PlayerInput, ServerPacket};
 use engine_world::VoxelChanged;
-use game::{GameplayInput, NetPlayerId, PlayerInputs, Transform, spawn_net_player};
+use game::{
+    GameplayInput, InventoryCommand, InventoryCommandQueue, NetPlayerId, PlayerInputs, Transform,
+    drop_amount_from_wire, spawn_net_player,
+};
 
 pub struct ServerNet(pub NetServer);
 
@@ -20,6 +23,47 @@ pub fn server_net_system(ctx: &mut SystemContext<'_>) {
                 if let Some(inputs) = ctx.resources.get_mut::<PlayerInputs>() {
                     inputs.set(client_id, gameplay_from_packet(input));
                 }
+            }
+            ClientPacket::InventoryActions(actions) => {
+                enqueue_inventory_actions(ctx, client_id, actions);
+            }
+        }
+    }
+}
+
+fn enqueue_inventory_actions(ctx: &mut SystemContext<'_>, client_id: u32, actions: Vec<InventoryAction>) {
+    let Some(player_entity) = ctx
+        .world
+        .query::<(&NetPlayerId,)>()
+        .iter()
+        .find_map(|(entity, (id,))| (id.0 == client_id).then_some(entity))
+    else {
+        return;
+    };
+    let Some(queue) = ctx.resources.get_mut::<InventoryCommandQueue>() else {
+        return;
+    };
+    for action in actions {
+        match action {
+            InventoryAction::MoveSlot { from, to } => {
+                queue.push(InventoryCommand::MoveSlot {
+                    player: player_entity,
+                    from,
+                    to,
+                });
+            }
+            InventoryAction::QuickMove { slot } => {
+                queue.push(InventoryCommand::QuickMove {
+                    player: player_entity,
+                    slot,
+                });
+            }
+            InventoryAction::SwapWithCarried { slot, carried } => {
+                queue.push(InventoryCommand::SwapCarried {
+                    player: player_entity,
+                    slot,
+                    carried: carried.map(game::stack_from_wire),
+                });
             }
         }
     }
@@ -85,5 +129,6 @@ fn gameplay_from_packet(input: PlayerInput) -> GameplayInput {
         break_block: input.break_block,
         place_block: input.place_block,
         tool_slot: input.tool_slot,
+        drop_hotbar: input.drop_hotbar.map(drop_amount_from_wire),
     }
 }

@@ -777,6 +777,7 @@ version = "0.1.0"
 dependencies = [
  "engine-assets",
  "engine-core",
+ "engine-net",
  "engine-world",
  "glam",
  "hecs",

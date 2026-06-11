@@ -1,8 +1,8 @@
 draw = "cutout"
+hardness = 0.2
 id = 4
 layout = "cube_v1"
 name = "leaves"
-solid = true
-hardness = 0.2
 preferred_tool = "pickaxe"
+solid = true
 tint = "biome_foliage"

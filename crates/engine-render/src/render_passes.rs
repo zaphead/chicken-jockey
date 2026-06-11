@@ -1,3 +1,4 @@
+use crate::dropped_items::ItemToolPipeline;
 use crate::lighting::LightingResources;
 use crate::pipeline::GpuMesh;
 use crate::pipeline::RenderPipelines;
@@ -42,6 +43,8 @@ pub fn record_shadow_pass(
     pipelines: &RenderPipelines,
     opaque_meshes: &[GpuMesh],
     cutout_meshes: &[GpuMesh],
+    item_opaque: Option<&GpuMesh>,
+    item_cutout: Option<&GpuMesh>,
 ) {
     let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
         label: Some("shadow_pass"),
@@ -63,6 +66,8 @@ pub fn record_shadow_pass(
     pass.set_bind_group(2, &lighting.uniform_bind_group, &[]);
     draw_meshes(&mut pass, opaque_meshes);
     draw_meshes(&mut pass, cutout_meshes);
+    draw_optional_mesh(&mut pass, item_opaque);
+    draw_optional_mesh(&mut pass, item_cutout);
 }
 
 pub fn record_depth_pass(
@@ -72,6 +77,8 @@ pub fn record_depth_pass(
     pipelines: &RenderPipelines,
     opaque_meshes: &[GpuMesh],
     cutout_meshes: &[GpuMesh],
+    item_opaque: Option<&GpuMesh>,
+    item_cutout: Option<&GpuMesh>,
 ) {
     let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
         label: Some("depth_pass"),
@@ -94,6 +101,8 @@ pub fn record_depth_pass(
     pass.set_bind_group(3, &lighting.shadow_bind_group, &[]);
     draw_meshes(&mut pass, opaque_meshes);
     draw_meshes(&mut pass, cutout_meshes);
+    draw_optional_mesh(&mut pass, item_opaque);
+    draw_optional_mesh(&mut pass, item_cutout);
 }
 
 pub fn record_opaque_pass(
@@ -103,6 +112,7 @@ pub fn record_opaque_pass(
     lighting: &LightingResources,
     pipelines: &RenderPipelines,
     opaque_meshes: &[GpuMesh],
+    item_opaque: Option<&GpuMesh>,
 ) {
     let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
         label: Some("opaque_pass"),
@@ -131,6 +141,7 @@ pub fn record_opaque_pass(
     pass.set_bind_group(2, &lighting.uniform_bind_group, &[]);
     pass.set_bind_group(3, &lighting.shadow_bind_group, &[]);
     draw_meshes(&mut pass, opaque_meshes);
+    draw_optional_mesh(&mut pass, item_opaque);
 }
 
 pub fn record_cutout_pass(
@@ -140,6 +151,7 @@ pub fn record_cutout_pass(
     lighting: &LightingResources,
     pipelines: &RenderPipelines,
     cutout_meshes: &[GpuMesh],
+    item_cutout: Option<&GpuMesh>,
 ) {
     let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
         label: Some("cutout_pass"),
@@ -168,6 +180,48 @@ pub fn record_cutout_pass(
     pass.set_bind_group(2, &lighting.uniform_bind_group, &[]);
     pass.set_bind_group(3, &lighting.shadow_bind_group, &[]);
     draw_meshes(&mut pass, cutout_meshes);
+    draw_optional_mesh(&mut pass, item_cutout);
+}
+
+pub fn record_item_tool_pass<'a>(
+    encoder: &mut wgpu::CommandEncoder,
+    hdr_view: &wgpu::TextureView,
+    depth_view: &wgpu::TextureView,
+    lighting: &LightingResources,
+    pipelines: &RenderPipelines,
+    item_tools: &'a ItemToolPipeline,
+    gui_atlas_bind_group: &'a wgpu::BindGroup,
+) {
+    if item_tools.index_count == 0 {
+        return;
+    }
+    let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+        label: Some("item_tool_pass"),
+        color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+            view: hdr_view,
+            resolve_target: None,
+            ops: wgpu::Operations {
+                load: wgpu::LoadOp::Load,
+                store: wgpu::StoreOp::Store,
+            },
+        })],
+        depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+            view: depth_view,
+            depth_ops: Some(wgpu::Operations {
+                load: wgpu::LoadOp::Load,
+                store: wgpu::StoreOp::Store,
+            }),
+            stencil_ops: None,
+        }),
+        occlusion_query_set: None,
+        timestamp_writes: None,
+    });
+    item_tools.draw_hdr(
+        &mut pass,
+        &pipelines.scene_bind_group,
+        gui_atlas_bind_group,
+        &lighting.uniform_bind_group,
+    );
 }
 
 pub fn record_player_depth_pass<'a>(
@@ -299,8 +353,15 @@ pub fn record_post_pass(
 
 fn draw_meshes(pass: &mut wgpu::RenderPass<'_>, meshes: &[GpuMesh]) {
     for mesh in meshes {
-        pass.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
-        pass.set_index_buffer(mesh.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
-        pass.draw_indexed(0..mesh.index_count, 0, 0..1);
+        draw_optional_mesh(pass, Some(mesh));
     }
+}
+
+fn draw_optional_mesh(pass: &mut wgpu::RenderPass<'_>, mesh: Option<&GpuMesh>) {
+    let Some(mesh) = mesh else {
+        return;
+    };
+    pass.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
+    pass.set_index_buffer(mesh.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
+    pass.draw_indexed(0..mesh.index_count, 0, 0..1);
 }

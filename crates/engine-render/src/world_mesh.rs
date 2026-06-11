@@ -6,6 +6,7 @@ use glam::{IVec3, Vec3};
 use rayon::prelude::*;
 
 use crate::ctm::neighbor_mask_for_face;
+use crate::dropped_items::ItemDropMeshes;
 use crate::extract::MiningOverlay;
 use crate::particles::ParticleMesh;
 use crate::humanoid_pose::PlayerRender;
@@ -22,6 +23,8 @@ pub struct RenderScene {
     pub particles: ParticleMesh,
     pub lighting: crate::lighting::LightingSnapshot,
     pub player: Option<PlayerRender>,
+    pub item_drops: ItemDropMeshes,
+    pub item_drop_generation: u64,
 }
 
 impl Default for RenderScene {
@@ -36,6 +39,8 @@ impl Default for RenderScene {
             particles: ParticleMesh::default(),
             lighting: crate::lighting::LightingSnapshot::default(),
             player: None,
+            item_drops: ItemDropMeshes::default(),
+            item_drop_generation: 0,
         }
     }
 }
@@ -279,6 +284,8 @@ pub fn extract_render_scene(
     particles: ParticleMesh,
     lighting: crate::lighting::LightingSnapshot,
     player: Option<PlayerRender>,
+    item_drops: ItemDropMeshes,
+    item_drop_generation: u64,
 ) -> RenderScene {
     RenderScene {
         camera,
@@ -290,6 +297,8 @@ pub fn extract_render_scene(
         particles,
         lighting,
         player,
+        item_drops,
+        item_drop_generation,
     }
 }
 

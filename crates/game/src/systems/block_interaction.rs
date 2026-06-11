@@ -4,17 +4,17 @@ use engine_world::{BlockPos, WorldMutationQueue};
 use glam::Vec3;
 use hecs::Entity;
 
-use crate::axes::view_forward;
 use crate::components::{
-    Collider, DisplayedPlayerView, LocomotionState, Mounted, NetPlayerId, Player,
-    PlayerAnimation, Transform,
+    Collider, LocomotionState, Mounted, NetPlayerId, Player, PlayerAnimation, PlayerInventory,
+    Transform,
 };
-use crate::movement::MC_TICK_DT;
 use crate::events::BlockChangeIntent;
-use crate::input::{resolve_input, LocalPlayerId};
-use crate::play_mode::{ActivePlayMode, PlayMode};
+use crate::input::resolve_input;
+use crate::inventory::{consume_from_slot, mark_inventory_dirty};
+use crate::movement::MC_TICK_DT;
+use crate::play_mode::survival_active;
 use crate::voxel_raycast::{
-    block_overlaps_player, player_interaction_ray, raycast_voxel, BLOCK_REACH,
+    authoritative_interaction_ray, block_overlaps_player, raycast_voxel, BLOCK_REACH,
 };
 
 /// Vanilla place spacing is ~4 ticks at 20 Hz; this is ~3 ticks (~150 ms at 60 Hz).
@@ -25,18 +25,11 @@ fn place_cooldown_sim_steps(sim_dt: f32) -> u8 {
 }
 
 pub fn block_interaction_system(ctx: &mut SystemContext<'_>) {
-    if ctx
-        .resources
-        .get::<ActivePlayMode>()
-        .is_some_and(|mode| mode.0 != PlayMode::Survival)
-    {
+    if !survival_active(ctx) {
         return;
     }
 
     let Some(registry) = ctx.resources.get::<BlockRegistry>().cloned() else {
-        return;
-    };
-    let Some(dirt) = registry.id_by_name("dirt") else {
         return;
     };
 
@@ -78,9 +71,18 @@ pub fn block_interaction_system(ctx: &mut SystemContext<'_>) {
             continue;
         }
 
-        let (origin, direction) = interaction_ray(ctx, net_id, &transform);
+        let Ok(inventory) = ctx.world.get::<&PlayerInventory>(player_entity) else {
+            continue;
+        };
+        let Some((block_id, _state)) = inventory.active_block() else {
+            continue;
+        };
+        let hotbar_slot = inventory.selected_hotbar as usize;
+        drop(inventory);
+
+        let (origin, direction) = authoritative_interaction_ray(ctx, net_id, &transform);
         let Some(world) = ctx.resources.get::<engine_world::SparseVoxelOctree>() else {
-            return;
+            continue;
         };
         let Some(hit) = raycast_voxel(world, &registry, origin, direction, BLOCK_REACH) else {
             continue;
@@ -103,15 +105,26 @@ pub fn block_interaction_system(ctx: &mut SystemContext<'_>) {
             continue;
         }
 
+        let Ok(mut inventory) = ctx.world.get::<&mut PlayerInventory>(player_entity) else {
+            continue;
+        };
+        if !consume_from_slot(&mut inventory, hotbar_slot, 1) {
+            continue;
+        }
+        drop(inventory);
+
         let Some(queue) = ctx.resources.get_mut::<WorldMutationQueue>() else {
-            return;
+            continue;
         };
 
-        queue.set_block(place_pos, dirt);
+        queue.set_block(place_pos, block_id);
         ctx.events.send(BlockChangeIntent {
             position: place_pos,
-            new_block: dirt,
+            new_block: block_id,
         });
+
+        mark_inventory_dirty(ctx, player_entity);
+
         if let Ok(mut locomotion) = ctx.world.get::<&mut LocomotionState>(player_entity) {
             locomotion.place_cooldown = place_cooldown_reset;
         }
@@ -119,23 +132,4 @@ pub fn block_interaction_system(ctx: &mut SystemContext<'_>) {
             anim.trigger_place_swing();
         }
     }
-}
-
-fn interaction_ray(
-    ctx: &SystemContext<'_>,
-    net_id: Option<u32>,
-    transform: &Transform,
-) -> (Vec3, Vec3) {
-    let local_id = ctx.resources.get::<LocalPlayerId>().and_then(|local| local.id);
-    let is_local = net_id == local_id;
-
-    if is_local {
-        if let Some(view) = ctx.resources.get::<DisplayedPlayerView>() {
-            if view.valid {
-                return (view.eye, view_forward(view.yaw, view.pitch));
-            }
-        }
-    }
-
-    player_interaction_ray(transform)
 }

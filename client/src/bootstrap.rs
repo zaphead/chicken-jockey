@@ -11,8 +11,8 @@ use engine_render::{ParticleSystem, RenderExtractState, RenderSurfaceInfo, Rende
 use engine_world::{BiomeMap, SparseVoxelOctree, WorldMutationQueue};
 use game::{
     register_local_client_systems, ActiveDebugWorld, ActivePlayMode, DayNightCycle, DebugWorldKind,
-    DisplayedPlayerView, LocalPlayerId, PlayerInputs, TerrainGeneration, WorldInitialized,
-    WorldSeed,
+    DisplayedPlayerView, InventoryCommandQueue, LocalPlayerId, PlayerInputs, TerrainGeneration,
+    WorldInitialized, WorldItemBook, WorldSeed,
 };
 
 use crate::systems::input::PendingWinitInput;
@@ -21,6 +21,7 @@ use crate::systems::ui_state::ClientUiState;
 use crate::systems::interpolation::PreviousPlayerTransform;
 use crate::systems::register_client_schedule;
 use crate::systems::spectator::reset_spectator_for_world;
+use crate::systems::zoom::CameraZoom;
 
 /// Shared ECS resources for client, tests, and diagnostics (no block registry or textures).
 pub fn bootstrap_client_shell(app: &mut App) {
@@ -47,9 +48,12 @@ pub fn bootstrap_client_shell(app: &mut App) {
     app.insert_resource(DayNightCycle::default());
     app.insert_resource(ClientUiState::default());
     app.insert_resource(ClientSettings::default());
+    app.insert_resource(CameraZoom::default());
     app.insert_resource(CursorGrabRequest {
         locked: true,
     });
+    app.insert_resource(WorldItemBook::default());
+    app.insert_resource(InventoryCommandQueue::default());
 }
 
 /// Loads block registry and packs block textures into a single resource.

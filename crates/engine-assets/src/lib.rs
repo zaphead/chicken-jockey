@@ -2,6 +2,7 @@
 
 mod atlas;
 mod blocks;
+mod items;
 mod environment;
 mod gui;
 mod tools;
@@ -16,7 +17,11 @@ mod skin;
 pub use atlas::{textures_asset_path, tile_uv_rect, TextureAtlas, UvRect, DEFAULT_GRID, DEFAULT_TILE_SIZE};
 pub use environment::{environment_asset_path, load_environment_textures, EnvironmentTextures};
 pub use gui::{gui_asset_path, load_gui_textures, GuiSprite, GuiTextures, NineSliceSprite};
-pub use blocks::{load_block_registry, BlockDefinition, BlockRegistry};
+pub use blocks::{load_block_registry, BlockDefinition, BlockRegistry, DropSpec};
+pub use items::{
+    clamp_stack_count, item_kind_registry_name, item_name_short_label, max_stack, stacks_merge,
+    ItemKind, ItemStack, BLOCK_MAX_STACK, TOOL_MAX_STACK,
+};
 pub use tools::{
     load_tool_registry, tools_asset_path, ToolClass, ToolDefinition, ToolId, ToolRegistry,
 };

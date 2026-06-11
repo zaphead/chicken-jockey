@@ -1,4 +1,7 @@
 pub mod extract;
+pub mod extract_items;
+pub mod net_items;
+pub mod pending_inventory;
 pub mod gui_extract;
 pub mod gui_items;
 pub mod hotbar;
@@ -13,6 +16,7 @@ pub mod play_mode;
 pub mod present;
 pub mod spectator;
 pub mod ui_state;
+pub mod zoom;
 
 use engine_assets::poll_assets_system;
 use engine_core::Stage;
@@ -30,6 +34,7 @@ pub use particles::particle_extract_system;
 pub use present::{present_frame_system, ClientRenderer};
 pub use play_mode::toggle_play_mode_system;
 pub use spectator::spectator_camera_system;
+pub use zoom::update_camera_zoom_system;
 
 pub fn register_client_schedule(app: &mut engine_core::App) {
     app.add_system(Stage::PreUpdate, poll_assets_system);
@@ -37,6 +42,7 @@ pub fn register_client_schedule(app: &mut engine_core::App) {
     app.add_system(Stage::PreUpdate, pause_menu_input_system);
     app.add_system(Stage::PreUpdate, inventory_input_system);
     app.add_system(Stage::PreUpdate, sync_local_input_system);
+    app.add_system(Stage::PreUpdate, update_camera_zoom_system);
     app.add_system(Stage::PreUpdate, apply_local_look_system);
     app.add_system(Stage::PreUpdate, spectator_camera_system);
     app.add_system(Stage::PreUpdate, client_net_system);

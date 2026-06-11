@@ -11,6 +11,8 @@ pub struct ImportManifest {
     pub colormaps: ColormapManifest,
     #[serde(default)]
     pub blocks: Vec<BlockImportSpec>,
+    #[serde(default)]
+    pub items: Vec<ItemImportSpec>,
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]
@@ -31,6 +33,17 @@ pub struct BlockImportSpec {
     pub tint: Option<TintModeToml>,
     #[serde(default)]
     pub overlay: bool,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct ItemImportSpec {
+    pub engine: String,
+    /// Pack path under `textures/` (e.g. `item/wooden_pickaxe`).
+    #[serde(default)]
+    pub pack: Option<String>,
+    /// Crop the block albedo top face into a 16×16 item icon.
+    #[serde(default)]
+    pub from_block_top: bool,
 }
 
 pub fn load_manifest(path: &Path) -> Result<ImportManifest, String> {

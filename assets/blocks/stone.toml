@@ -1,7 +1,7 @@
+hardness = 1.5
 id = 2
 layout = "cube_v1"
 name = "stone"
-solid = true
-hardness = 1.5
 preferred_tool = "pickaxe"
 requires_tool = true
+solid = true

@@ -1,6 +1,7 @@
 //! wgpu renderer, chunk meshing, and render-world extraction.
 
 mod camera;
+mod dropped_items;
 mod ctm;
 mod extract;
 mod gui;
@@ -22,10 +23,13 @@ mod sky;
 mod renderer;
 mod world_mesh;
 
-pub use camera::Camera;
+pub use camera::{Camera, DEFAULT_FOV_Y};
 pub use gui::{GuiButton, GuiFrame, GuiLabel, GuiPanel, GuiPipeline, GuiRect, GuiSpriteInstance};
 pub use hud::HudPipeline;
-pub use extract::{MiningOverlay, RenderExtractState, RenderSurfaceInfo, RenderWorld};
+pub use dropped_items::{build_item_drop_meshes, ItemDropBuildContext, ItemDropMeshes, ItemToolPipeline};
+pub use extract::{
+    DroppedItemRender, MiningOverlay, RenderExtractState, RenderSurfaceInfo, RenderWorld,
+};
 pub use lighting::LightingSnapshot;
 pub use mining_overlay::{build_mining_overlay_mesh, MiningOverlayMesh, MiningOverlayVertex};
 pub use particles::{ParticleMesh, ParticlePipeline, ParticleSystem, ParticleVertex};

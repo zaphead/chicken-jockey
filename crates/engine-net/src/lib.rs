@@ -10,7 +10,9 @@ pub use codec::{
     CodecError,
 };
 pub use messages::{
-    BlockDelta, ClientPacket, EntitySnapshot, PlayerInput, ServerPacket, DEFAULT_PORT,
+    BlockDelta, ClientPacket, DropAmountWire, EntitySnapshot, InventoryAction, InventorySync,
+    ItemStackWire, PlayerInput, ServerPacket, WorldItemSnapshot, DEFAULT_PORT,
+    INVENTORY_SLOT_COUNT,
 };
 pub use transport::{NetClient, NetServer};
 

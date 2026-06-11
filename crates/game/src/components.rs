@@ -1,4 +1,4 @@
-use engine_assets::ToolId;
+use engine_assets::{ItemStack, ToolId};
 use glam::{IVec3, Vec3};
 use hecs::Entity;
 use engine_world::{BlockId, BlockPos};
@@ -35,7 +35,7 @@ pub const INVENTORY_SLOTS: usize = HOTBAR_SLOTS + MAIN_INVENTORY_SLOTS;
 
 #[derive(Debug, Clone, Copy)]
 pub struct PlayerInventory {
-    pub slots: [Option<ToolId>; INVENTORY_SLOTS],
+    pub slots: [Option<ItemStack>; INVENTORY_SLOTS],
     pub selected_hotbar: u8,
 }
 
@@ -51,7 +51,7 @@ impl Default for PlayerInventory {
 impl PlayerInventory {
     pub fn starter_loadout(pickaxe_id: ToolId) -> Self {
         let mut slots = [None; INVENTORY_SLOTS];
-        slots[1] = Some(pickaxe_id);
+        slots[1] = Some(ItemStack::tool(pickaxe_id));
         Self {
             slots,
             selected_hotbar: 0,
@@ -59,14 +59,28 @@ impl PlayerInventory {
     }
 
     pub fn active_tool(&self) -> Option<ToolId> {
+        self.active_stack().and_then(|stack| match stack.kind {
+            engine_assets::ItemKind::Tool(id) => Some(id),
+            engine_assets::ItemKind::Block { .. } => None,
+        })
+    }
+
+    pub fn active_block(&self) -> Option<(BlockId, engine_world::BlockState)> {
+        self.active_stack().and_then(|stack| match stack.kind {
+            engine_assets::ItemKind::Block { id, state } if stack.count > 0 => Some((id, state)),
+            _ => None,
+        })
+    }
+
+    pub fn active_stack(&self) -> Option<ItemStack> {
         self.slots[self.selected_hotbar as usize]
     }
 
-    pub fn slot(&self, index: usize) -> Option<ToolId> {
+    pub fn slot(&self, index: usize) -> Option<ItemStack> {
         self.slots.get(index).copied().flatten()
     }
 
-    pub fn set_slot(&mut self, index: usize, item: Option<ToolId>) {
+    pub fn set_slot(&mut self, index: usize, item: Option<ItemStack>) {
         if let Some(slot) = self.slots.get_mut(index) {
             *slot = item;
         }
@@ -80,6 +94,18 @@ impl PlayerInventory {
         HOTBAR_SLOTS + main
     }
 }
+
+#[derive(Debug, Clone, Copy)]
+pub struct DroppedItem {
+    pub stack: ItemStack,
+    pub pickup_delay_ticks: u8,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct WorldItemId(pub u32);
+
+#[derive(Debug, Clone, Copy, Default)]
+pub struct InventoryDirty;
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct BlockMiningState {

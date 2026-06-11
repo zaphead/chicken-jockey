@@ -2,14 +2,10 @@ use engine_core::SystemContext;
 
 use crate::components::{NetPlayerId, Player, PlayerInventory};
 use crate::input::resolve_input;
-use crate::play_mode::{ActivePlayMode, PlayMode};
+use crate::play_mode::survival_active;
 
 pub fn held_tool_select_system(ctx: &mut SystemContext<'_>) {
-    if ctx
-        .resources
-        .get::<ActivePlayMode>()
-        .is_some_and(|mode| mode.0 != PlayMode::Survival)
-    {
+    if !survival_active(ctx) {
         return;
     }
 

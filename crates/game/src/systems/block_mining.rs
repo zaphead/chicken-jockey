@@ -4,20 +4,16 @@ use engine_world::{BlockPos, WorldMutationQueue};
 use glam::IVec3;
 
 use crate::components::{
-    BlockMiningState, DisplayedPlayerView, Mounted, NetPlayerId, Player, PlayerInventory, Transform,
+    BlockMiningState, Mounted, NetPlayerId, Player, PlayerInventory, Transform,
 };
-use crate::events::{BlockChangeIntent, BlockMiningProgress};
-use crate::input::{resolve_input, LocalPlayerId};
+use crate::events::{BlockBroken, BlockChangeIntent, BlockMiningProgress};
+use crate::input::resolve_input;
 use crate::mining::{can_harvest_block, mining_delta, tool_efficiency};
-use crate::play_mode::{ActivePlayMode, PlayMode};
-use crate::voxel_raycast::{player_interaction_ray, raycast_voxel, BLOCK_REACH};
+use crate::play_mode::survival_active;
+use crate::voxel_raycast::{authoritative_interaction_ray, raycast_voxel, BLOCK_REACH};
 
 pub fn block_mining_system(ctx: &mut SystemContext<'_>) {
-    if ctx
-        .resources
-        .get::<ActivePlayMode>()
-        .is_some_and(|mode| mode.0 != PlayMode::Survival)
-    {
+    if !survival_active(ctx) {
         return;
     }
 
@@ -61,9 +57,9 @@ pub fn block_mining_system(ctx: &mut SystemContext<'_>) {
             continue;
         }
 
-        let (origin, direction) = interaction_ray(ctx, net_id, &transform);
+        let (origin, direction) = authoritative_interaction_ray(ctx, net_id, &transform);
         let Some(world) = ctx.resources.get::<engine_world::SparseVoxelOctree>() else {
-            return;
+            continue;
         };
         let Some(hit) = raycast_voxel(world, &registry, origin, direction, BLOCK_REACH) else {
             reset_mining(ctx, player_entity);
@@ -102,12 +98,18 @@ pub fn block_mining_system(ctx: &mut SystemContext<'_>) {
 
         if mining.progress >= 1.0 {
             let pos = hit.block_pos;
+            let harvested = can_harvest;
             if let Some(queue) = ctx.resources.get_mut::<WorldMutationQueue>() {
                 queue.set_block(pos, air);
             }
             ctx.events.send(BlockChangeIntent {
                 position: pos,
                 new_block: air,
+            });
+            ctx.events.send(BlockBroken {
+                position: pos,
+                block_id,
+                harvested,
             });
             mining.target = None;
             mining.progress = 0.0;
@@ -141,24 +143,3 @@ fn reset_mining(ctx: &mut SystemContext<'_>, player_entity: hecs::Entity) {
     }
 }
 
-fn interaction_ray(
-    ctx: &SystemContext<'_>,
-    net_id: Option<u32>,
-    transform: &Transform,
-) -> (glam::Vec3, glam::Vec3) {
-    let local_id = ctx.resources.get::<LocalPlayerId>().and_then(|local| local.id);
-    let is_local = net_id == local_id;
-
-    if is_local {
-        if let Some(view) = ctx.resources.get::<DisplayedPlayerView>() {
-            if view.valid {
-                return (
-                    view.eye,
-                    crate::axes::view_forward(view.yaw, view.pitch),
-                );
-            }
-        }
-    }
-
-    player_interaction_ray(transform)
-}

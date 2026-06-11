@@ -7,6 +7,7 @@ edition.workspace = true
 engine-core = { path = "../engine-core" }
 engine-world = { path = "../engine-world" }
 engine-assets = { path = "../engine-assets" }
+engine-net = { path = "../engine-net" }
 
 glam = { workspace = true }
 hecs = { workspace = true }

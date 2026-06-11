@@ -1,4 +1,7 @@
+use engine_assets::ItemKind;
 use engine_world::BlockPos;
+
+use crate::dropped_items::ItemDropMeshes;
 
 use crate::camera::Camera;
 use crate::gui::GuiFrame;
@@ -12,6 +15,14 @@ use crate::world_mesh::ChunkMeshCache;
 #[derive(Debug, Clone)]
 pub struct MiningOverlay {
     pub mesh: MiningOverlayMesh,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct DroppedItemRender {
+    pub position: glam::Vec3,
+    pub spin: f32,
+    pub kind: ItemKind,
+    pub count: u16,
 }
 
 #[derive(Debug)]
@@ -30,6 +41,9 @@ pub struct RenderWorld {
     pub gui_scale: f32,
     pub gui: GuiFrame,
     pub player: Option<PlayerRender>,
+    pub item_drops: ItemDropMeshes,
+    /// 0 when no drops; otherwise `animation_tick` for spin/bob GPU sync.
+    pub item_drop_generation: u64,
 }
 
 impl Default for RenderWorld {
@@ -48,6 +62,8 @@ impl Default for RenderWorld {
             gui_scale: 4.0,
             gui: GuiFrame::default(),
             player: None,
+            item_drops: ItemDropMeshes::default(),
+            item_drop_generation: 0,
         }
     }
 }

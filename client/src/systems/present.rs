@@ -1,8 +1,8 @@
-use engine_assets::ToolRegistry;
+use engine_assets::{BlockRegistry, ToolRegistry};
 use engine_core::SystemContext;
 use engine_render::{extract_render_scene, Renderer, RenderWorld};
 use game::{
-    local_player_entity, tool_label_for_inventory, ActiveDebugWorld, ActivePlayMode, PlayerInventory,
+    active_item_label, local_player_entity, ActiveDebugWorld, ActivePlayMode, PlayerInventory,
     Velocity,
 };
 use glam::Vec3;
@@ -22,11 +22,10 @@ pub fn present_frame_system(ctx: &mut SystemContext<'_>) {
     let tool_label = local_player
         .and_then(|entity| ctx.world.get::<&PlayerInventory>(entity).ok())
         .and_then(|inventory| {
-            ctx.resources
-                .get::<ToolRegistry>()
-                .map(|tools| (inventory, tools))
+            let tools = ctx.resources.get::<ToolRegistry>()?;
+            let blocks = ctx.resources.get::<BlockRegistry>()?;
+            Some(active_item_label(&inventory, blocks, tools))
         })
-        .map(|(inventory, tools)| tool_label_for_inventory(&inventory, tools))
         .unwrap_or_else(|| "hand".to_string());
 
     let presented = ctx
@@ -63,6 +62,8 @@ pub fn present_frame_system(ctx: &mut SystemContext<'_>) {
                 world.particles.clone(),
                 world.lighting,
                 world.player,
+                world.item_drops.clone(),
+                world.item_drop_generation,
             );
             let gui = if world.gui.needs_gui_pass() {
                 Some(&world.gui)

@@ -46,15 +46,21 @@ pub fn destroy_stage(progress: f32) -> u8 {
     ((progress * 10.0) as u8).min(9)
 }
 
-pub fn tool_label_for_inventory(
+pub fn active_item_label(
     inventory: &crate::components::PlayerInventory,
+    blocks: &BlockRegistry,
     tools: &ToolRegistry,
 ) -> String {
-    inventory
-        .active_tool()
-        .and_then(|id| tools.get(id))
-        .map(|tool| tool.name.clone())
-        .unwrap_or_else(|| "hand".to_string())
+    let Some(stack) = inventory.active_stack() else {
+        return "hand".to_string();
+    };
+    engine_assets::item_kind_registry_name(stack.kind, blocks, tools).unwrap_or_else(|| {
+        if stack.is_tool() {
+            "tool".to_string()
+        } else {
+            "block".to_string()
+        }
+    })
 }
 
 #[cfg(test)]

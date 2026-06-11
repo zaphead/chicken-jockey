@@ -1,9 +1,18 @@
 use engine_core::SystemContext;
 use engine_input::InputState;
+use engine_input::DropHotbarRequest;
 use game::{
-    apply_look_delta, local_player_entity, ActivePlayMode, GameplayInput, LocalPlayerId, PlayMode,
-    PlayerInputs, Transform,
+    apply_look_delta, local_player_entity, ActivePlayMode, DropAmount, GameplayInput, LocalPlayerId,
+    PlayMode, PlayerInputs, Transform,
 };
+
+fn map_drop_hotbar(request: DropHotbarRequest) -> DropAmount {
+    match request {
+        DropHotbarRequest::One => DropAmount::One,
+        DropHotbarRequest::Half => DropAmount::Half,
+        DropHotbarRequest::All => DropAmount::All,
+    }
+}
 
 use crate::systems::ui_state::ClientUiState;
 
@@ -79,6 +88,7 @@ pub fn sync_local_input_system(ctx: &mut SystemContext<'_>) {
         break_block: pending.0.break_held,
         place_block: pending.0.place_held,
         tool_slot: pending.0.selected_tool_slot,
+        drop_hotbar: pending.0.drop_hotbar.map(map_drop_hotbar),
         }
     };
 

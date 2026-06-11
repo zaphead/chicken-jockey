@@ -1,9 +1,9 @@
+hardness = 0.6
 id = 3
 layout = "cube_v1"
 name = "grass"
-solid = true
-hardness = 0.6
 preferred_tool = "pickaxe"
+solid = true
 tint = "biome_grass"
 
 [[overlays]]

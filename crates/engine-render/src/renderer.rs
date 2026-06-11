@@ -5,6 +5,7 @@ use wgpu::SurfaceError;
 use winit::dpi::PhysicalSize;
 use winit::window::Window;
 
+use crate::dropped_items::ItemToolPipeline;
 use crate::gui::{GuiFrame, GuiPipeline};
 use crate::hud::HudPipeline;
 use crate::lighting::{compute_light_view_proj, LightingResources};
@@ -36,6 +37,10 @@ pub struct Renderer {
     hud: HudPipeline,
     gui: GuiPipeline,
     gui_textures: GuiTextures,
+    item_tools: ItemToolPipeline,
+    item_drop_opaque: Option<GpuMesh>,
+    item_drop_cutout: Option<GpuMesh>,
+    uploaded_item_drop_generation: u64,
     player: PlayerPipeline,
 }
 
@@ -120,6 +125,13 @@ impl Renderer {
 
         let hud = HudPipeline::new(&device, surface_format);
         let gui = GuiPipeline::new(&device, &queue, surface_format, gui_textures);
+        let item_tools = ItemToolPipeline::new(
+            &device,
+            hdr_format,
+            &pipelines.scene_bind_group_layout(),
+            gui.atlas_bind_group_layout(),
+            &lighting.uniform_bind_group_layout,
+        );
         let local_player_parts = build_humanoid_model_parts();
         let player = PlayerPipeline::new(
             &device,
@@ -151,8 +163,39 @@ impl Renderer {
             hud,
             gui,
             gui_textures: gui_textures.clone(),
+            item_tools,
+            item_drop_opaque: None,
+            item_drop_cutout: None,
+            uploaded_item_drop_generation: u64::MAX,
             player,
         }
+    }
+
+    fn sync_item_drops(
+        &mut self,
+        item_drops: &crate::dropped_items::ItemDropMeshes,
+        generation: u64,
+    ) {
+        if self.uploaded_item_drop_generation == generation {
+            return;
+        }
+        self.uploaded_item_drop_generation = generation;
+        self.item_drop_opaque = if item_drops.opaque.vertices.is_empty() {
+            None
+        } else {
+            Some(GpuMesh::from_mesh(&self.device, &item_drops.opaque))
+        };
+        self.item_drop_cutout = if item_drops.cutout.vertices.is_empty() {
+            None
+        } else {
+            Some(GpuMesh::from_mesh(&self.device, &item_drops.cutout))
+        };
+        let tool_mesh = if item_drops.tools.vertices.is_empty() {
+            None
+        } else {
+            Some(&item_drops.tools)
+        };
+        self.item_tools.sync_mesh(&self.queue, tool_mesh);
     }
 
     pub fn resize(&mut self, size: PhysicalSize<u32>) {
@@ -275,6 +318,7 @@ impl Renderer {
             .sync_mesh(&self.queue, particle_mesh);
 
         self.player.set_player(&self.queue, scene.player);
+        self.sync_item_drops(&scene.item_drops, scene.item_drop_generation);
 
         let output = self.surface.get_current_texture()?;
         let view = output
@@ -300,6 +344,8 @@ impl Renderer {
             &self.pipelines,
             &self.opaque_meshes,
             &self.cutout_meshes,
+            self.item_drop_opaque.as_ref(),
+            self.item_drop_cutout.as_ref(),
         );
         render_passes::record_depth_pass(
             &mut encoder,
@@ -308,6 +354,8 @@ impl Renderer {
             &self.pipelines,
             &self.opaque_meshes,
             &self.cutout_meshes,
+            self.item_drop_opaque.as_ref(),
+            self.item_drop_cutout.as_ref(),
         );
         render_passes::record_player_depth_pass(
             &mut encoder,
@@ -322,6 +370,7 @@ impl Renderer {
             &self.lighting,
             &self.pipelines,
             &self.opaque_meshes,
+            self.item_drop_opaque.as_ref(),
         );
         render_passes::record_cutout_pass(
             &mut encoder,
@@ -330,6 +379,16 @@ impl Renderer {
             &self.lighting,
             &self.pipelines,
             &self.cutout_meshes,
+            self.item_drop_cutout.as_ref(),
+        );
+        render_passes::record_item_tool_pass(
+            &mut encoder,
+            &self.post.hdr_view,
+            &self.depth_view,
+            &self.lighting,
+            &self.pipelines,
+            &self.item_tools,
+            self.gui.atlas_bind_group(),
         );
         render_passes::record_player_color_pass(
             &mut encoder,

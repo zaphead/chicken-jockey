@@ -1,5 +1,6 @@
 mod block_interaction;
 mod block_mining;
+pub mod items;
 mod day_night;
 mod held_tool;
 mod chicken;
@@ -12,6 +13,7 @@ pub mod terrain;
 mod world_init;
 
 pub use block_interaction::block_interaction_system;
+pub use items::register_authoritative_item_systems;
 pub use day_night::day_night_system;
 pub use block_mining::block_mining_system;
 pub use held_tool::held_tool_select_system;

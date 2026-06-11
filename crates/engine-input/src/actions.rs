@@ -1,5 +1,12 @@
 use glam::Vec2;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DropHotbarRequest {
+    One,
+    Half,
+    All,
+}
+
 #[derive(Debug, Default, Clone)]
 pub struct InputState {
     pub move_axis: Vec2,
@@ -11,6 +18,7 @@ pub struct InputState {
     pub interact: bool,
     pub break_held: bool,
     pub place_held: bool,
+    pub zoom_held: bool,
     pub selected_tool_slot: u8,
     pub cursor_locked: bool,
     pub cursor_pos: Vec2,
@@ -18,6 +26,7 @@ pub struct InputState {
     pub toggle_pause: bool,
     pub toggle_inventory: bool,
     pub menu_click: bool,
+    pub drop_hotbar: Option<DropHotbarRequest>,
 }
 
 impl InputState {
@@ -46,6 +55,7 @@ impl InputState {
         self.toggle_pause = false;
         self.toggle_inventory = false;
         self.menu_click = false;
+        self.drop_hotbar = None;
     }
 }
 

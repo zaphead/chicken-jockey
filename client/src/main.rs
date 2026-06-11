@@ -52,6 +52,7 @@ impl ClientApp {
             log::info!("connecting to server at {addr}");
             ecs.insert_resource(NetworkClient);
             ecs.insert_resource(ClientNet(NetClient::connect(addr)));
+            ecs.insert_resource(client::systems::pending_inventory::PendingInventoryActions::default());
             register_network_client_systems(&mut ecs);
         } else {
             register_local_client_systems(&mut ecs);

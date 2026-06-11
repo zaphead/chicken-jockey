@@ -4,7 +4,8 @@ use std::path::Path;
 use crate::blocks::TintModeToml;
 use crate::material::DrawCategory;
 use crate::import::compose::{compose_albedo, compose_overlay};
-use crate::import::manifest::{BlockImportSpec, ColormapManifest, ImportManifest};
+use crate::import::manifest::{BlockImportSpec, ColormapManifest, ImportManifest, ItemImportSpec};
+use crate::layouts::{face_region, CubeFace, FACE_SIZE};
 use crate::import::model::{read_texture_mcmeta, resolve_cube_model};
 use crate::import::source::PackSource;
 
@@ -12,6 +13,7 @@ use crate::import::source::PackSource;
 pub struct ImportReport {
     pub blocks_imported: Vec<String>,
     pub colormaps_imported: Vec<String>,
+    pub items_imported: Vec<String>,
 }
 
 pub fn import_texture_pack(
@@ -26,6 +28,7 @@ pub fn import_texture_pack(
     let mut report = ImportReport {
         blocks_imported: Vec::new(),
         colormaps_imported: Vec::new(),
+        items_imported: Vec::new(),
     };
 
     import_colormaps(&mut source, &manifest.colormaps, &textures_dir, &mut report)?;
@@ -33,6 +36,11 @@ pub fn import_texture_pack(
     for spec in &manifest.blocks {
         import_block(&mut source, spec, &textures_dir, &blocks_dir)?;
         report.blocks_imported.push(spec.engine.clone());
+    }
+
+    for spec in &manifest.items {
+        import_item(&mut source, spec, &textures_dir)?;
+        report.items_imported.push(spec.engine.clone());
     }
 
     Ok(report)
@@ -55,6 +63,53 @@ fn import_colormaps(
         copy_colormap(source, path, &out_dir.join("foliage.png"))?;
         report.colormaps_imported.push("foliage".into());
     }
+    Ok(())
+}
+
+fn import_item(
+    source: &mut PackSource,
+    spec: &ItemImportSpec,
+    textures_dir: &Path,
+) -> Result<(), String> {
+    let out_dir = textures_dir.join("items");
+    fs::create_dir_all(&out_dir)
+        .map_err(|error| format!("mkdir {}: {error}", out_dir.display()))?;
+    let dest = out_dir.join(format!("{}.png", spec.engine));
+
+    if let Some(pack) = &spec.pack {
+        let bytes = source.read_mc(&format!("textures/{pack}.png"))?;
+        fs::write(&dest, bytes).map_err(|error| format!("write {}: {error}", dest.display()))?;
+    } else if spec.from_block_top {
+        let albedo_path = textures_dir
+            .join("blocks")
+            .join(&spec.engine)
+            .join("albedo.png");
+        let albedo = image::open(&albedo_path)
+            .map_err(|error| format!("load {}: {error}", albedo_path.display()))?
+            .into_rgba8();
+        let region = face_region(CubeFace::Top);
+        let icon = image::imageops::crop_imm(&albedo, region.x, region.y, region.w, region.h)
+            .to_image();
+        if icon.width() != FACE_SIZE || icon.height() != FACE_SIZE {
+            return Err(format!(
+                "item '{}' top-face crop must be {FACE_SIZE}×{FACE_SIZE}",
+                spec.engine
+            ));
+        }
+        icon.save(&dest)
+            .map_err(|error| format!("write {}: {error}", dest.display()))?;
+    } else {
+        return Err(format!(
+            "item '{}' needs `pack` or `from_block_top = true`",
+            spec.engine
+        ));
+    }
+
+    println!(
+        "imported item '{}' -> {}",
+        spec.engine,
+        dest.display()
+    );
     Ok(())
 }
 

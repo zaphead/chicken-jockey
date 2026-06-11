@@ -89,6 +89,7 @@ flowchart TB
 | 18    | MC-parity material engine    | Complete | M0–M7 per [`material-engine.md`](./material-engine.md) |
 | 19    | Texture pack importer        | Complete | `import-texture-pack` CLI + [`assets/import/manifest.toml`](../assets/import/manifest.toml) |
 | 20    | Lighting & atmosphere        | Complete | 60s day/night, unified HDR sky+terrain post, 4096 shadow map, shared lighting WGSL, Whimscape sun/moon |
+| 21    | Items, drops & inventory     | Complete | `ItemStack` (100 blocks / 1 tool), harvest-gated drops, pickup + merge, server-authoritative net sync, Q/shift-click QoL |
 
 Update the **Status** column as work completes. Add dated notes under [Progress log](#progress-log).
 
@@ -432,6 +433,12 @@ Full client–server model per design doc §7:
 | Main-thread terrain gen                   | 8     | Later       | Open                                     |
 | Extract on main thread (no render thread) | 5     | 11          | Removed — render-submit worker thread    |
 | In-process / dumb client networking       | 10    | 12          | Removed — QUIC + datagrams               |
+
+### 2026-06-10 — Items, drops & inventory (Phase 21)
+
+- `ItemKind` / `ItemStack` in `engine-assets`; pure inventory ops in `game/inventory.rs`; `PlayerInventory` holds stacked block items + tools.
+- Authoritative drop spawn on `BlockBroken` when harvestable; pickup (1.25×0.6 magnet), ground merge, Q/Ctrl+Q/Shift+Q drop keys, shift-click quick-move, stack count HUD.
+- Server sync: `WorldItems` + `InventorySync` packets; `InventoryCommand` queue for all mutations; network client replicates world items and sends `InventoryActions`.
 
 Do not let shortcuts leak into `game` or `engine-world` APIs. Isolate them inside `engine-render` or `client`/`server` wiring.
 

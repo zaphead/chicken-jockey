@@ -1,9 +1,11 @@
 use engine_assets::BlockRegistry;
+use engine_core::SystemContext;
 use engine_world::{BlockPos, SparseVoxelOctree};
 use glam::Vec3;
 
 use crate::axes::{player_view_position, view_forward};
-use crate::components::Transform;
+use crate::components::{DisplayedPlayerView, Transform};
+use crate::input::LocalPlayerId;
 
 pub const BLOCK_REACH: f32 = 6.0;
 
@@ -23,6 +25,22 @@ pub fn camera_interaction_ray(camera_position: Vec3, yaw: f32, pitch: f32) -> (V
 pub fn player_interaction_ray(transform: &Transform) -> (Vec3, Vec3) {
     let origin = player_view_position(transform.position, transform.yaw);
     (origin, view_forward(transform.yaw, transform.pitch))
+}
+
+pub fn authoritative_interaction_ray(
+    ctx: &SystemContext<'_>,
+    net_id: Option<u32>,
+    transform: &Transform,
+) -> (Vec3, Vec3) {
+    let local_id = ctx.resources.get::<LocalPlayerId>().and_then(|local| local.id);
+    if net_id == local_id {
+        if let Some(view) = ctx.resources.get::<DisplayedPlayerView>() {
+            if view.valid {
+                return (view.eye, view_forward(view.yaw, view.pitch));
+            }
+        }
+    }
+    player_interaction_ray(transform)
 }
 
 pub fn raycast_voxel(

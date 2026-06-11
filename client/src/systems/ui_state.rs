@@ -1,4 +1,4 @@
-use engine_assets::ToolId;
+use engine_assets::ItemStack;
 
 use crate::systems::menu::PauseScreen;
 
@@ -13,7 +13,7 @@ pub enum ClientModal {
 #[derive(Debug, Clone, Default)]
 pub struct ClientUiState {
     pub modal: ClientModal,
-    pub carried: Option<ToolId>,
+    pub carried: Option<ItemStack>,
 }
 
 impl ClientUiState {

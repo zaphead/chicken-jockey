@@ -1,8 +1,8 @@
-use engine_assets::{GuiTextures, ToolRegistry};
+use engine_assets::{BlockRegistry, GuiTextures, ToolRegistry};
 use engine_render::{GuiFrame, GuiRect, GuiSpriteInstance, RenderSurfaceInfo};
 use game::PlayerInventory;
 
-use crate::systems::gui_items::{centered_item_label, item_label};
+use crate::systems::gui_items::{append_stack_icon, stack_count_gui_label};
 
 const HOTBAR_W: f32 = 182.0;
 const HOTBAR_H: f32 = 22.0;
@@ -16,6 +16,7 @@ pub(crate) fn append_hotbar(
     textures: &GuiTextures,
     surface: RenderSurfaceInfo,
     inventory: &PlayerInventory,
+    blocks: Option<&BlockRegistry>,
     tools: Option<&ToolRegistry>,
 ) {
     let scale = frame.scale;
@@ -41,11 +42,8 @@ pub(crate) fn append_hotbar(
     });
 
     let slot = SLOT_SIZE * scale;
-    for (index, tool_id) in inventory.slots[..game::HOTBAR_SLOTS]
-        .iter()
-        .enumerate()
-    {
-        let Some(tool_id) = tool_id else {
+    for (index, stack) in inventory.slots[..game::HOTBAR_SLOTS].iter().enumerate() {
+        let Some(stack) = stack else {
             continue;
         };
         let rect = GuiRect {
@@ -54,8 +52,10 @@ pub(crate) fn append_hotbar(
             w: slot,
             h: slot,
         };
-        let label = item_label(*tool_id, tools);
-        frame.labels.push(centered_item_label(&label, rect, scale));
+        append_stack_icon(frame, textures, *stack, rect, scale, blocks, tools);
+        if let Some(count_label) = stack_count_gui_label(stack.count, rect, scale) {
+            frame.labels.push(count_label);
+        }
     }
 }
 

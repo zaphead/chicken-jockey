@@ -4,6 +4,7 @@ use std::sync::OnceLock;
 static VOXEL_SHADER: OnceLock<String> = OnceLock::new();
 static MINING_OVERLAY_SHADER: OnceLock<String> = OnceLock::new();
 static PARTICLE_SHADER: OnceLock<String> = OnceLock::new();
+static ITEM_TOOL_SHADER: OnceLock<String> = OnceLock::new();
 static PLAYER_SHADER: OnceLock<String> = OnceLock::new();
 
 fn concat_wgsl(main: &str) -> String {
@@ -23,6 +24,12 @@ pub fn mining_overlay_shader_source() -> wgpu::ShaderSource<'static> {
 
 pub fn particle_shader_source() -> wgpu::ShaderSource<'static> {
     let source = PARTICLE_SHADER.get_or_init(|| concat_wgsl(include_str!("particles/particles.wgsl")));
+    wgpu::ShaderSource::Wgsl(Cow::Borrowed(source.as_str()))
+}
+
+pub fn item_tool_shader_source() -> wgpu::ShaderSource<'static> {
+    let source =
+        ITEM_TOOL_SHADER.get_or_init(|| concat_wgsl(include_str!("dropped_items/tools.wgsl")));
     wgpu::ShaderSource::Wgsl(Cow::Borrowed(source.as_str()))
 }
 

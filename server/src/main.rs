@@ -10,8 +10,8 @@ use engine_core::{App, Time, SIM_DT, SIM_HZ};
 use engine_net::NetServer;
 use engine_world::{SparseVoxelOctree, WorldMutationQueue};
 use game::{
-    register_server_systems, AuthoritativeServer, DayNightCycle, PlayerInputs, TerrainGeneration,
-    WorldInitialized, WorldSeed,
+    register_server_systems, AuthoritativeServer, DayNightCycle, InventoryCommandQueue,
+    PlayerInputs, TerrainGeneration, WorldInitialized, WorldItemBook, WorldSeed,
 };
 use systems::{register_server_schedule, ServerNet};
 
@@ -28,6 +28,8 @@ fn main() {
     app.insert_resource(TerrainGeneration::default());
     app.insert_resource(WorldSeed::random());
     app.insert_resource(DayNightCycle::default());
+    app.insert_resource(WorldItemBook::default());
+    app.insert_resource(InventoryCommandQueue::default());
 
     let manifest_dir = env!("CARGO_MANIFEST_DIR");
     let blocks_path = blocks_asset_path(manifest_dir);

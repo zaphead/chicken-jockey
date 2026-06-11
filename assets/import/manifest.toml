@@ -25,3 +25,23 @@ engine = "leaves"
 model = "birch_leaves_alt_1"
 draw = "cutout"
 tint = "biome_foliage"
+
+[[items]]
+engine = "wooden_pickaxe"
+pack = "item/wooden_pickaxe"
+
+[[items]]
+engine = "dirt"
+from_block_top = true
+
+[[items]]
+engine = "grass"
+from_block_top = true
+
+[[items]]
+engine = "stone"
+from_block_top = true
+
+[[items]]
+engine = "leaves"
+from_block_top = true

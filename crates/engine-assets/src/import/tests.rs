@@ -44,6 +44,16 @@ mod whimscape {
         let report = import_texture_pack(&whimscape, &manifest, &assets)
             .expect("import");
         assert_eq!(report.blocks_imported.len(), 4);
+        assert_eq!(report.items_imported.len(), 5);
+        for name in ["dirt", "grass", "stone", "leaves", "wooden_pickaxe"] {
+            assert!(
+                assets
+                    .join("textures/items")
+                    .join(format!("{name}.png"))
+                    .is_file(),
+                "missing item icon {name}"
+            );
+        }
 
         let registry = load_block_registry(&blocks_dir);
         let textures = textures_asset_path(assets.to_str().unwrap());

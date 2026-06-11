@@ -1,4 +1,5 @@
 pub mod net;
+pub mod net_items;
 
 pub use net::server_net_system;
 pub use net::ServerNet;
@@ -11,6 +12,7 @@ pub fn register_server_schedule(app: &mut engine_core::App) {
     app.add_system(Stage::PreUpdate, poll_assets_system);
     app.add_system(Stage::PreUpdate, server_net_system);
     app.add_system(Stage::PostUpdate, server_net_broadcast_system);
+    app.add_system(Stage::PostUpdate, net_items::server_net_items_broadcast_system);
 }
 
 use net::server_net_broadcast_system;
