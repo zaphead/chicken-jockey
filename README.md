@@ -8,9 +8,15 @@ No Rust toolchain required.
 
 1. Open [Releases](https://github.com/zaphead/OpenCraft/releases/tag/macos-latest) and download the latest **OpenCraft-*-macos-*.dmg**.
 2. Open the DMG and drag **OpenCraft** into Applications.
-3. Launch OpenCraft. On first run, macOS may block the unsigned app — right-click the app → **Open**, then confirm.
+3. If macOS says the app is **damaged** or won't open, remove the download quarantine flag (this is normal for unsigned builds):
 
-Each push to `main` rebuilds the DMG automatically.
+```bash
+xattr -cr /Applications/OpenCraft.app
+```
+
+4. Launch OpenCraft. If macOS still blocks it, right-click the app → **Open**, then confirm.
+
+Each push to `main` rebuilds the DMG automatically. Fully seamless installs (no quarantine workaround) require Apple code signing and notarization, which we can add later.
 
 ## Development
 

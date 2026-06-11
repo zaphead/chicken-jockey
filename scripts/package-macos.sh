@@ -49,6 +49,10 @@ cat >"$APP/Contents/Info.plist" <<'PLIST'
 </plist>
 PLIST
 
+echo "Ad-hoc signing app bundle..."
+codesign --force --deep --sign - "$APP"
+codesign --verify --verbose=2 "$APP"
+
 mkdir -p "$OUT"
 rm -f "$DMG"
 echo "Creating DMG..."
