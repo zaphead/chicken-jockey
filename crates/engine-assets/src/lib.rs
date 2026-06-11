@@ -39,4 +39,4 @@ pub use material::{
 };
 pub use poll::poll_assets_system;
 pub use skin::{load_player_skin, player_skin_path, PlayerSkin};
-pub use server::{assets_dir, blocks_asset_path, AssetServer, Handle, LoadState};
+pub use server::{assets_dir, blocks_asset_path, runtime_asset_root, AssetServer, Handle, LoadState};

@@ -12,7 +12,7 @@ use engine_net::NetClient;
 use engine_render::{RenderSurfaceInfo, RenderWorld, Renderer};
 use game::{register_local_client_systems, register_network_client_systems, NetworkClient};
 
-use client::bootstrap::{bootstrap_client_resources, bootstrap_client_shell};
+use client::bootstrap::{asset_root, bootstrap_client_resources, bootstrap_client_shell};
 use client::frame::run_client_frame;
 use client::systems::input::PendingWinitInput;
 use client::diagnostics::ClientDiagnostics;
@@ -43,7 +43,7 @@ impl ClientApp {
         let mut ecs = App::new();
         ecs.insert_resource(Time::new(SIM_DT));
         bootstrap_client_shell(&mut ecs);
-        bootstrap_client_resources(&mut ecs, env!("CARGO_MANIFEST_DIR"));
+        bootstrap_client_resources(&mut ecs, &asset_root());
 
         if let Some(addr) = std::env::var("OC_SERVER")
             .ok()
@@ -129,27 +129,23 @@ impl ClientApp {
             log::error!("renderer init failed: ResolvedBlockMaterials resource missing");
             return;
         };
-        let destroy_atlas =
-            load_destroy_stage_atlas(&mining_textures_dir(env!("CARGO_MANIFEST_DIR")));
+        let root = asset_root();
+        let destroy_atlas = load_destroy_stage_atlas(&mining_textures_dir(&root));
         let environment = self
             .ecs
             .resource::<Arc<EnvironmentTextures>>()
             .cloned()
-            .unwrap_or_else(|| Arc::new(engine_assets::load_environment_textures(
-                env!("CARGO_MANIFEST_DIR"),
-            )));
+            .unwrap_or_else(|| Arc::new(engine_assets::load_environment_textures(&root)));
         let gui = self
             .ecs
             .resource::<Arc<GuiTextures>>()
             .cloned()
-            .unwrap_or_else(|| {
-                Arc::new(engine_assets::load_gui_textures(env!("CARGO_MANIFEST_DIR")))
-            });
+            .unwrap_or_else(|| Arc::new(engine_assets::load_gui_textures(&root)));
         let player_skin = self
             .ecs
             .resource::<Arc<PlayerSkin>>()
             .cloned()
-            .unwrap_or_else(|| Arc::new(engine_assets::load_player_skin(env!("CARGO_MANIFEST_DIR"))));
+            .unwrap_or_else(|| Arc::new(engine_assets::load_player_skin(&root)));
         let renderer = Renderer::new(
             window,
             &materials,

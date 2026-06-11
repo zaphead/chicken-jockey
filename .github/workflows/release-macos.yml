@@ -1,0 +1,46 @@
+name: macOS release
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  build-dmg:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: .
+
+      - name: Build DMG
+        run: bash scripts/package-macos.sh
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: opencraft-macos-dmg
+          path: dist/*.dmg
+          if-no-files-found: error
+
+      - name: Publish rolling macOS release
+        uses: ncipollo/release-action@v1
+        with:
+          tag: macos-latest
+          name: OpenCraft macOS (latest main)
+          body: |
+            Automated build from commit ${{ github.sha }} on `${{ github.ref_name }}`.
+
+            Download the DMG, open it, and drag OpenCraft into Applications.
+            On first launch, macOS may block an unsigned app — right-click → Open.
+          artifacts: dist/*.dmg
+          allowUpdates: true
+          replacesArtifacts: true
+          makeLatest: false
+          prerelease: true

@@ -2,8 +2,8 @@ use std::sync::Arc;
 
 use engine_assets::{
     blocks_asset_path, load_block_registry, load_environment_textures, load_gui_textures,
-    load_player_skin, load_tool_registry, pack_block_materials, textures_asset_path,
-    tools_asset_path, AssetServer,
+    load_player_skin, load_tool_registry, pack_block_materials, runtime_asset_root,
+    textures_asset_path, tools_asset_path, AssetServer,
 };
 use engine_core::App;
 use engine_input::InputState;
@@ -22,6 +22,10 @@ use crate::systems::interpolation::PreviousPlayerTransform;
 use crate::systems::register_client_schedule;
 use crate::systems::spectator::reset_spectator_for_world;
 use crate::systems::zoom::CameraZoom;
+
+pub fn asset_root() -> String {
+    runtime_asset_root().to_string_lossy().into_owned()
+}
 
 /// Shared ECS resources for client, tests, and diagnostics (no block registry or textures).
 pub fn bootstrap_client_shell(app: &mut App) {
@@ -79,7 +83,7 @@ pub fn bootstrap_local_app(time: engine_core::Time) -> engine_core::App {
     let mut app = App::new();
     app.insert_resource(time);
     bootstrap_client_shell(&mut app);
-    bootstrap_client_resources(&mut app, env!("CARGO_MANIFEST_DIR"));
+    bootstrap_client_resources(&mut app, &asset_root());
     register_local_client_systems(&mut app);
     register_client_schedule(&mut app);
     app

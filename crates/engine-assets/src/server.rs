@@ -121,8 +121,34 @@ impl AssetServer {
     }
 }
 
-pub fn assets_dir(manifest_dir: &str) -> PathBuf {
-    let start = Path::new(manifest_dir);
+/// Directory whose subtree contains `assets/` — dev checkout, portable folder, or `.app` Resources.
+pub fn runtime_asset_root() -> PathBuf {
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(exe_dir) = exe.parent() {
+            if exe_dir.file_name().and_then(|name| name.to_str()) == Some("MacOS") {
+                if let Some(contents) = exe_dir.parent() {
+                    let resources = contents.join("Resources");
+                    if resources.join("assets").is_dir() {
+                        return resources;
+                    }
+                }
+            }
+            for ancestor in exe_dir.ancestors() {
+                if ancestor.join("assets").is_dir() {
+                    return ancestor.to_path_buf();
+                }
+            }
+        }
+    }
+    assets_dir(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .map(Path::to_path_buf)
+        .unwrap_or_else(|| PathBuf::from(env!("CARGO_MANIFEST_DIR")))
+}
+
+pub fn assets_dir(manifest_dir: impl AsRef<Path>) -> PathBuf {
+    let manifest_dir = manifest_dir.as_ref();
+    let start = manifest_dir;
     for ancestor in start.ancestors() {
         let candidate = ancestor.join("assets");
         if candidate.is_dir() {
@@ -132,6 +158,6 @@ pub fn assets_dir(manifest_dir: &str) -> PathBuf {
     start.join("..").join("assets")
 }
 
-pub fn blocks_asset_path(manifest_dir: &str) -> PathBuf {
+pub fn blocks_asset_path(manifest_dir: impl AsRef<Path>) -> PathBuf {
     assets_dir(manifest_dir).join("blocks")
 }
